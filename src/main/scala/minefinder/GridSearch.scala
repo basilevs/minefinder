@@ -9,16 +9,20 @@ import java.awt.geom.{Line2D}
 import java.awt.{Graphics2D}
 
 class AxisGuess(val start:Int, val step:Int) {
+	assert(step>0)
 	def distance(x : Int):Int = {
 		val mod = abs((x - start) % step)
 		min(mod, mod - step)
 	}
-	def findBound(hasHit: (Int) => Boolean): Axis = {
+	def findBound(hasHit: (Int) => Boolean, fuzzy:Float): Axis = {
+		assert(fuzzy > 0)
 		var position = start % step
 		var newstart = 0
 		var found = false
 		while ((position / step) < 1000) {
-			val hit = hasHit(position)
+			val from = (position - fuzzy).toInt
+			val to = (position + fuzzy).toInt
+			val hit =  from.to(to).exists(hasHit(_))
 			if (hit && !found) {
 				newstart = position
 				assert((newstart - start) % step ==0)
@@ -63,6 +67,17 @@ class Grid(x:Axis, y:Axis) {
 			g2d.draw(new Line2D.Float(left, y, right, y))
 		}
 	}
+	def getCellImage(x:Int, y:Int, img:BufferedImage) = {
+		assert(x>0)
+		assert(y>0)
+		val rv = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
+		val gc = rv.createGraphics
+		val cellTop = top + height*y
+		val cellLeft = left + width*x 
+		gc.drawImage(img, null, -cellLeft, -cellTop)
+		gc.dispose()
+		rv
+	}
 }
 
 
@@ -73,54 +88,8 @@ class Peak(val x:Int, val width: Int) {
 }
 
 object GridSearch {
+	import ImageTools._
 	//Detects dark lines
-	class RgbIntensityFilter(threshold:Int) extends Function1[Int, Boolean] {
-		def apply(rgb:Int) = sumRgb(rgb) < threshold
-	}
-	def sumRgb(rgb:Int):Int = {
-		(0xFF & rgb) + 
-		((0xFF00 & rgb) >> 8) + 
-		((0xFF0000 & rgb) >> 16)
-	}
-	implicit def predicateToFilter(predicate: (Int) => Boolean) = {
-		new TrueIsBlackFilter(predicate)
-	}
-	class TrueIsBlackFilter(predicate: (Int) => Boolean) extends RGBImageFilter {
-		def filterRGB(x:Int, y:Int, rgb:Int) = if (!predicate(rgb)) {
-			0xFFFFFFFF
-		} else {
-			0xFF000000			
-		}
-		
-	}
-	class AllColorsLevelFilter(level: Int) extends RGBImageFilter  {
-		var pr = 0
-		def filterRGB(x:Int, y:Int, rgb:Int) = {
-			if ((x % 100) == 0 && (y %100) == 0 && false) {
-				println(sumRgb(rgb))
-				pr+=1
-			}
-			if (sumRgb(rgb) > level) {
-				0xFFFFFFFF
-			} else {
-				0xFF000000
-			}
-		}
-	}
-	class WhiteMaskFilter(mask:Int) extends RGBImageFilter  {
-		def filterRGB(x:Int, y:Int, rgb:Int) = rgb | mask
-	}
-	class MaskFilter(mask:Int) extends RGBImageFilter  {
-		def filterRGB(x:Int, y:Int, rgb:Int) = rgb & mask
-	}
-	class InvertFilter  extends RGBImageFilter {
-		def filterRGB(x:Int, y:Int, rgb:Int) = {
-			~(0xFFFFFF&rgb)
-		}
-	}
-	def filter(img:Image, filter: ImageFilter) = {
-		imageToBuffered(Toolkit.getDefaultToolkit.createImage(new FilteredImageSource(img.getSource, filter)))
-	}
 	def calcMeanIntensity(img:BufferedImage) = {
 		var sum = 0.
 		for (
@@ -134,6 +103,7 @@ object GridSearch {
 	def detectPeaks(data:Array[Int], height:Int):Seq[Peak] = {
 		var inPeak = false
 		var start = 0
+		var highest = 0
 		val rv = collection.mutable.Buffer[Peak]()
 		for (x <- 0 until data.length) {
 			if (data(x)>=height) {
@@ -141,21 +111,20 @@ object GridSearch {
 					inPeak=true
 					start = x
 				}
+				if (data(highest) < data(x))
+					highest = x
 			} else {
 				if (inPeak) {
-					rv += new Peak((start+x)/2, x - start)
+					rv += new Peak(highest, x - start)
 					assert(rv.size > 0)
 					inPeak = false
+					highest = 0
 				}
 			}
 		}
 //		println("Peak count: "+ rv.size)
 //		println(rv.map(_.toString).foldLeft("")( (head,element) => head+"," +element ))
 		rv
-	}
-	private val bufferedBuilder = new BufferedImageBuilder()
-	def imageToBuffered(img:Image) = {
-		bufferedBuilder.bufferImage(img)
 	}
 	def countPixels(img:BufferedImage, rgbFilter:(Int) => Boolean) = {
 		val byX = new Array[Int](img.getWidth)
@@ -176,34 +145,47 @@ object GridSearch {
 	//strong - no noise
 	def detectGrid(img:BufferedImage, weak:(Int) => Boolean, strong:(Int) => Boolean): Grid = {
 		val lines = detectLines(img, strong)
+		val allPeaks = lines._1 ++ lines._2
+		val fuzzy = allPeaks.map(_.width).sum / allPeaks.size
 		val guess = (findPeriod(lines._1).get, findPeriod(lines._2).get)
-		val axises = findBounds(img, guess._1, guess._2, weak)
+		val axises = findBounds(img, guess._1, guess._2, fuzzy, weak)
 		new Grid(axises._1, axises._2)
+	}
+	def detectGrid(img:BufferedImage):Grid = {
+			val intensity = calcMeanIntensity(img)
+			val strong = new RgbIntensityFilter((intensity*0.5).toInt)
+//			show("Strong: "+name, filter(img, strong))
+			val weak = new RgbIntensityFilter((intensity*0.9).toInt)
+			detectGrid(img, weak, strong)
 	}
 	def detectLines(img:BufferedImage, rgbFilter:(Int) => Boolean) = {
 		val (byX, byY) = countPixels(img, rgbFilter)
 		(detectPeaks(byX, img.getHeight/2), detectPeaks(byY, img.getWidth/2))		
 	}
 	class Threshold(data:Seq[Int], threshold:Int) extends Function1[Int, Boolean] {
-		override def apply(x:Int) = data(x) > threshold
+		override def apply(x:Int) = {
+			assert(x>=0)
+			if (x > data.size) false
+			else data(x) > threshold
+		}
 	}
-	def findBounds(img:BufferedImage, x:AxisGuess, y:AxisGuess, rgbFilter:(Int) => Boolean) = {
+	def findBounds(img:BufferedImage, x:AxisGuess, y:AxisGuess, fuzzy:Int, rgbFilter:(Int) => Boolean) = {
 		val (byX, byY) = countPixels(img, rgbFilter)
-		(x.findBound(new Threshold(byX, img.getHeight/4)), y.findBound(new Threshold(byY, img.getWidth/4)))
+		(x.findBound(new Threshold(byX, img.getHeight/2), fuzzy), y.findBound(new Threshold(byY, img.getWidth/2), fuzzy))
 	}
 	def findPeriod(peaks:Seq[Peak]): Option[AxisGuess] = {
-		var maxhits = 0
+		var bestderivation = 1000
 		var bestguess = Option.empty[AxisGuess]
 		for (i <- 1 until peaks.size) {
 			val prev = peaks(i - 1)
 			val curr = peaks(i)
 			val guess = new AxisGuess(prev.x, abs(curr.x - prev.x))
-			val hits = peaks.count(peak => guess.distance(peak.x) <= peak.width)
-			if (hits == peaks.size)
+			val derivation = peaks.map(peak => guess.distance(peak.x)/peak.width).sum
+			if (derivation == 0)
 				return Option(guess)
-			if (hits > maxhits) {
+			if (derivation < bestderivation) {
 				bestguess = Option(guess)
-				maxhits = hits
+				bestderivation = derivation
 			}
 		}
 		bestguess

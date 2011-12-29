@@ -14,7 +14,8 @@ class GridSearch extends FunSuite {
 	import minefinder.GridSearch._
 	val fields = Seq(
 		new Field("some.png", 16, 30),
-		new Field("green.png", 16, 30)
+		new Field("green.png", 16, 30),
+		new Field("blue_medium.png", 16, 16)
 	)
 	def show (imageTitle:String, img: Image) {
 		val frame = new Frame() {
@@ -74,17 +75,28 @@ class GridSearch extends FunSuite {
 			val name = field.name
 			val img = field.image
 			val intensity = calcMeanIntensity(img)
-			val strong = new RgbIntensityFilter((intensity/2).toInt)
+			val strong = new RgbIntensityFilter((intensity*0.5).toInt)
 //			show("Strong: "+name, filter(img, strong))
-			val weak = new RgbIntensityFilter((intensity).toInt)
-			show("Weak: "+name, filter(img, weak))
+			val weak = new RgbIntensityFilter((intensity*0.9).toInt)
+//			show("Weak: "+name, filter(img, weak))
 			val grid = detectGrid(img, weak, strong)
 			val g2d = img.createGraphics();
 			g2d.setColor(Color.green)
 			g2d.setStroke(new BasicStroke(2))
 			grid.draw(g2d)
 			g2d.dispose()
-			show("Grid "+name, img)
+//			show("Grid "+name, img)
+			assert(grid.rows == field.rows)
+			assert(grid.columns == field.columns)
+		}
+	}
+	test("select cell") {
+		for(field <- fields) {
+			val img = field.image
+			val grid  = detectGrid(img)
+			val cellImage = grid.getCellImage(4, 6, img)
+			assert(cellImage!=null)
+//			show("Cell 4, 6 of "+field.name+":", cellImage)
 		}
 	}
 }
