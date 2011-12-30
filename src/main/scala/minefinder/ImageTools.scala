@@ -9,6 +9,23 @@ import java.awt.{Graphics2D}
 
 object ImageTools {
 	private val bufferedBuilder = new BufferedImageBuilder()
+	def compare(img1:BufferedImage, img2:BufferedImage):Int = {
+		val h = img1.getHeight - img2.getHeight
+		if (h != 0)
+			return h
+		val w = img1.getWidth - img2.getWidth
+		if (w != 0)
+			return w
+		for (
+			y <- 0 until img1.getHeight;
+			x <- 0 until img1.getWidth
+		) {
+			val p = img1.getRGB(x, y) - img2.getRGB(x, y)
+			if (p != 0)
+				return p
+		}
+		return 0
+	}
 	def sumRgb(rgb:Int):Int = {
 		(0xFF & rgb) + 
 		((0xFF00 & rgb) >> 8) + 

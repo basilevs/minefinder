@@ -1,22 +1,15 @@
 import org.scalatest.FunSuite
-import javax.imageio.ImageIO
 import java.awt.image.{BufferedImage}
 import java.awt.geom.{Line2D}
 import java.awt.{Graphics2D, Color, BasicStroke}
 import scala.swing._
 import javax.swing.ImageIcon
 
-class Field(val name:String, val rows:Int, val columns: Int) {
-	def image = ImageIO.read(classOf[Field].getResource("minefinder/"+name))
-}
+import minefinder.ImageTools._
 
 class GridSearch extends FunSuite {
 	import minefinder.GridSearch._
-	val fields = Seq(
-		new Field("some.png", 16, 30),
-		new Field("green.png", 16, 30),
-		new Field("blue_medium.png", 16, 16)
-	)
+	val fields = Field.all
 	def show (imageTitle:String, img: Image) {
 		val frame = new Frame() {
 			this.title = imageTitle

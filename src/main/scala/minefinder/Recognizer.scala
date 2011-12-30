@@ -21,7 +21,7 @@ object Recognizer {
 				Option.empty[Mark]
 			} else {
 				val (mark, diff) = patterns.iterator.map( p => (p._1, abs(difference(p._2, img))) ).minBy(_._2)
-				if (diff > 1000) {
+				if (diff < 1.) {
 					Option(mark)
 				} else {
 					Option.empty[Mark]
@@ -31,7 +31,7 @@ object Recognizer {
 		def difference(img1:BufferedImage, img2:BufferedImage):Float
 	}
 	
-	class ColorDifference extends Difference { 
+	class ColorDifference(maxPixelDiff:Float) extends Difference { 
 		def difference(img1:BufferedImage, img2:BufferedImage) = {
 			val height = min(img1.getHeight, img2.getHeight)
 			val width = min(img1.getWidth, img2.getWidth)
@@ -42,14 +42,19 @@ object Recognizer {
 				) yield {
 					abs(sumRgb(img1.getRGB(x, y) - img2.getRGB(x, y)))
 				}
-			).sum
+			).sum / height / width * maxPixelDiff
 		}
 	}
 	
 	trait Cascade  extends Recognizer {
 		val next:Iterable[Recognizer]
 		def recognize(img:BufferedImage): Option[Mark] = {
-			next.flatMap(_.recognize(img)).headOption
+			val results = next.flatMap(_.recognize(img)).toSet
+			if (results.size == 1) {
+				results.headOption
+			} else {
+				Option.empty[Mark]
+			}
 		}
 		def train(mark:Mark, img:BufferedImage) {
 			next.foreach(_.train(mark, img))
@@ -59,11 +64,11 @@ object Recognizer {
 	trait Transforming extends Cascade {
 		override def recognize(img:BufferedImage): Option[Mark] = {
 			val t = transform(img)
-			next.flatMap(_.recognize(t)).headOption
+			super.recognize(t)
 		}
 		override def train(mark:Mark, img:BufferedImage) {
 			val t = transform(img)
-			next.foreach(_.train(mark, t))
+			super.train(mark, t)
 		}
 		def transform(img:BufferedImage): BufferedImage
 	}
@@ -130,7 +135,7 @@ object Recognizer {
 		val simple = new Scaling {
 			val height = 7
 			val width = 7
-			val next = Seq(new ColorDifference())
+			val next = Seq(new ColorDifference(30))
 		}
 		val next = Seq(simple) 
 	}
@@ -146,12 +151,24 @@ object Recognizer {
 			}
 		}
 	}
+	class PersistentLearner(name:String) extends Recognizer {
+		val storage = new SampleStorage(name)
+		storage.load
+		def recognize(img:BufferedImage) : Option[Mark] = Option.empty[Mark]
+		def train(mark:Mark, img:BufferedImage) {
+			storage += ((mark, img))
+		}
+	}
 	class Training extends Verifying {
-		val next = Seq(new AutomaticRecognizer())
+		val persistent = new PersistentLearner("samples")
+		val automatic = new AutomaticRecognizer()
+		val next = Seq(automatic, persistent)
 		override def recognize(img:BufferedImage) : Option[Mark] = {
 			val rv = super.recognize(img)
 			rv.foreach(train(_, img))
 			rv
 		}
 	}
+	
+	
 }
