@@ -14,6 +14,13 @@ class SampleStorage extends FunSuite {
 		assert(compare(fields(0).image, fields(0).image)==0)
 	}
 	
+	test("image serialization") {
+		val image = fields(0).image
+		val bytes = Subject.toBytes(image)
+		val image2 = Subject.toImage(bytes)
+		assert(compare(image, image2)==0)
+	}
+	
 	test("save images") {
 		val storage1 = new Subject("testStorage")
 		try {

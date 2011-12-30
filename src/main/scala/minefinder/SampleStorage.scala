@@ -4,7 +4,8 @@ import collection.mutable.{HashSet, SetProxy}
 import collection.JavaConversions._
 
 import java.awt.image.{BufferedImage}
-import java.io.{FileOutputStream, ObjectOutputStream, FileInputStream, ObjectInputStream, FileNotFoundException}
+import javax.imageio.ImageIO
+import java.io.{FileOutputStream, ObjectOutputStream, FileInputStream, ObjectInputStream, FileNotFoundException, ByteArrayOutputStream, ByteArrayInputStream}
 
 /**
  * Persistent sample storage for algorithm teaching.
@@ -36,5 +37,13 @@ class SampleStorage(name:String) extends SetProxy[(Mark, BufferedImage)] {
 }
 
 object SampleStorage {
-
+	def toBytes(img:BufferedImage) = {
+		val baos = new ByteArrayOutputStream();
+		ImageIO.write(img, "PNG", baos);
+		baos.toByteArray();
+	}
+	def toImage(bytes:Array[Byte]) = {
+		val bais = new ByteArrayInputStream(bytes)
+		ImageIO.read(bais);
+	}
 }
