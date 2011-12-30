@@ -1,3 +1,4 @@
 *.class
 build/fake/defender/*.properties
 target
+testStorage.ser

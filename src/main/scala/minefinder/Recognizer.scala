@@ -42,7 +42,7 @@ object Recognizer {
 				) yield {
 					abs(sumRgb(img1.getRGB(x, y) - img2.getRGB(x, y)))
 				}
-			).sum / height / width * maxPixelDiff
+			).sum / height / width / maxPixelDiff
 		}
 	}
 	
@@ -92,11 +92,11 @@ object Recognizer {
 		}
 	}
 	
-	class AskUser extends Recognizer {
-		def recognize(img:BufferedImage): Option[Mark] = {
-			ask(img)
+	class AskUser extends Cascade {
+		val next = Seq(new ColorDifference(2))
+		override def recognize(img:BufferedImage): Option[Mark] = {
+			super.recognize(img) orElse ask(img)
 		}
-		def train(mark:Mark, img:BufferedImage) {}
 		val shownIcon = new ImageIcon()
 		var selectedMark = Option.empty[Mark]
 		val frame = new Dialog() {
@@ -139,16 +139,18 @@ object Recognizer {
 		}
 		val next = Seq(simple) 
 	}
+	/** Compares recognition result with user input
+	 *  Prints fails on console.
+	*/
 	trait Verifying extends Cascade {
 		val user = new AskUser()
 		override def recognize(img:BufferedImage): Option[Mark] = {
 			val auto = super.recognize(img)
 			val manual = user.recognize(img)
-			if (auto == manual) {
-				auto
-			} else {
-				Option.empty[Mark]
+			if (auto != manual) {
+				println("Recognition error: recognized:"+auto+", manual:"+manual )
 			}
+			manual
 		}
 	}
 	class PersistentLearner(name:String) extends Recognizer {
@@ -159,9 +161,12 @@ object Recognizer {
 			storage += ((mark, img))
 		}
 	}
+	/** Uses sample collection and user input to train algorithms.
+	 */
 	class Training extends Verifying {
 		val persistent = new PersistentLearner("samples")
 		val automatic = new AutomaticRecognizer()
+		persistent.storage.foreach(pair => automatic.train(pair._1, pair._2))
 		val next = Seq(automatic, persistent)
 		override def recognize(img:BufferedImage) : Option[Mark] = {
 			val rv = super.recognize(img)
