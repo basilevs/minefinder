@@ -31,7 +31,7 @@ object Recognizer {
 		def difference(img1:BufferedImage, img2:BufferedImage):Float
 	}
 	
-	trait ColorDifference extends Difference { 
+	class ColorDifference extends Difference { 
 		def difference(img1:BufferedImage, img2:BufferedImage) = {
 			val height = min(img1.getHeight, img2.getHeight)
 			val width = min(img1.getWidth, img2.getWidth)
@@ -87,11 +87,11 @@ object Recognizer {
 		}
 	}
 	
-	trait AskUser extends Cascade {
-		override def recognize(img:BufferedImage): Option[Mark] = {
-			val t = next.flatMap(_.recognize(img)).headOption
-			t orElse ask(img)
+	class AskUser extends Recognizer {
+		def recognize(img:BufferedImage): Option[Mark] = {
+			ask(img)
 		}
+		def train(mark:Mark, img:BufferedImage) {}
 		val shownIcon = new ImageIcon()
 		var selectedMark = Option.empty[Mark]
 		val frame = new Dialog() {
@@ -126,4 +126,32 @@ object Recognizer {
 		}
 	}
 	
+	class AutomaticRecognizer extends Cascade {
+		val simple = new Scaling {
+			val height = 7
+			val width = 7
+			val next = Seq(new ColorDifference())
+		}
+		val next = Seq(simple) 
+	}
+	trait Verifying extends Cascade {
+		val user = new AskUser()
+		override def recognize(img:BufferedImage): Option[Mark] = {
+			val auto = super.recognize(img)
+			val manual = user.recognize(img)
+			if (auto == manual) {
+				auto
+			} else {
+				Option.empty[Mark]
+			}
+		}
+	}
+	class Training extends Verifying {
+		val next = Seq(new AutomaticRecognizer())
+		override def recognize(img:BufferedImage) : Option[Mark] = {
+			val rv = super.recognize(img)
+			rv.foreach(train(_, img))
+			rv
+		}
+	}
 }
