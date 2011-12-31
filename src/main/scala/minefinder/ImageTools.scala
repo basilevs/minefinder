@@ -11,8 +11,27 @@ import java.awt.{Graphics2D}
 
 object ImageTools {
 	private val bufferedBuilder = new BufferedImageBuilder()
-	
-	def calcMeanIntensity(img:BufferedImage) = {
+	class Color(shift:Int) {
+		val mask:Int = 0xFF << shift
+		def get(rgb:Int):Int = (rgb & mask) >> shift
+		def put(value:Int):Int = (value << shift) & mask
+		def adjust(rgb:Int, coeff:Float):Int = (rgb & ~mask) | put((get(rgb)* coeff).toInt)
+	}
+	val blue = new Color(0)
+	val green = new Color(8)
+	val red = new Color(16)
+	val colors = Seq(red, green, blue)
+	def adjustRgbBrightness(rgb:Int, coeff:Float):Int = {
+		var rv = rgb
+		for (c <- colors)  {
+			rv = c.adjust(rv, coeff)
+		}
+		return rv
+	}
+	def adjustBrightness(img:BufferedImage, coeff:Float):BufferedImage = {
+		filter(img, new AdjustBrightnessFilter(coeff))
+	}
+	def calcMeanIntensity(img:BufferedImage):Float = {
 		var sum = 0.
 		for (
 			y <- 0 until img.getHeight;
@@ -20,7 +39,7 @@ object ImageTools {
 		) {
 			sum += sumRgb(img.getRGB(x, y))
 		}
-		sum / img.getHeight / img.getWidth
+		(sum / img.getHeight / img.getWidth).toFloat
 	}
 	def differencePerPixel(img1:BufferedImage, img2:BufferedImage):Float = {
 		differencePerPixel(img1, img2, (a, b) => sumRgb(a - b))
@@ -31,14 +50,14 @@ object ImageTools {
 	def differencePerPixel(img1:BufferedImage, img2:BufferedImage, diff:(Int, Int) => Float):Float = {
 		val height = min(img1.getHeight, img2.getHeight)
 		val width = min(img1.getWidth, img2.getWidth)
-		(
-			for (
-				y <- 0 until height;
-				x <- 0 until width
-			) yield {
-				abs(diff(img1.getRGB(x, y), img2.getRGB(x, y)))
-			}
-		).sum / height / width
+		var sum = 0.D
+		for (
+			y <- 0 until height;
+			x <- 0 until width
+		) {
+			sum+=abs(diff(img1.getRGB(x, y), img2.getRGB(x, y)))
+		}
+		(sum / height / width).toFloat
 	}
 	def toSize(img:Image, width:Int, height:Int) = {
 		val rv = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
@@ -85,7 +104,7 @@ object ImageTools {
 	class RgbIntensityFilter(threshold:Int) extends Function1[Int, Boolean] {
 		def apply(rgb:Int) = sumRgb(rgb) < threshold
 	}
-	implicit def predicateToFilter(predicate: (Int) => Boolean) = {
+	implicit def predicateToFilter(predicate: (Int) => Boolean):ImageFilter = {
 		new TrueIsBlackFilter(predicate)
 	}
 	class TrueIsBlackFilter(predicate: (Int) => Boolean) extends RGBImageFilter {
@@ -109,6 +128,10 @@ object ImageTools {
 				0xFF000000
 			}
 		}
+	}
+	
+	class AdjustBrightnessFilter(coeff:Float) extends RGBImageFilter  {
+		def filterRGB(x:Int, y:Int, rgb:Int) = adjustRgbBrightness(rgb, coeff)
 	}
 	class WhiteMaskFilter(mask:Int) extends RGBImageFilter  {
 		def filterRGB(x:Int, y:Int, rgb:Int) = rgb | mask

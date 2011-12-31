@@ -4,6 +4,11 @@ import math.{abs, min}
 import javax.swing.ImageIcon
 import swing.{Button, Dialog, Action, BoxPanel, Orientation, Label}
 
+case class Sample(mark:Mark, img:BufferedImage) {
+	def _1 = mark
+	def _2 = img
+}
+
 trait Recognizer {
 	def recognize(img:BufferedImage): Option[Mark]
 	def train(mark:Mark, img:BufferedImage)
@@ -15,38 +20,48 @@ object Recognizer {
 	class UserFail extends TrainError
 	import ImageTools._
 	trait Difference  extends Recognizer {
+		type Pair = Sample
 		val exactMatchThreshold:Float
 		val probableMatchThreshold:Float
-		val patterns = collection.mutable.Buffer[(Mark, BufferedImage)]()
-		def train(mark:Mark, img:BufferedImage) {
-			for (pattern <- patterns) {
-				if (abs(difference(img, pattern._2))<exactMatchThreshold) {
-					if (pattern._1 != mark)
-						throw new ContradictoryTraining()
-					println("Rejected similar image during difference training. Trained: "+ patterns.size)
-//					Thread.dumpStack()
-					return
+		val patterns = collection.mutable.Buffer[Pair]()
+		def recognizeToPair(img:BufferedImage):Option[Pair] = {
+			var found = Option.empty[Pair]
+			for ( pair <- patterns) {
+				val mark = pair._1
+				val pattern = pair._2
+				val diff = abs(difference(pattern, img))
+				if (diff < exactMatchThreshold)
+					return Option(pair)
+				if (diff < probableMatchThreshold) {
+					if (found.getOrElse(mark) != mark) {
+						println("Contradictory recognition: " + found.get._1 +", "+mark)
+						throw new ContradictoryRecognition(Seq(found.get, pair), img)
+					}
+					found = Option(pair)					
 				}
 			}
-			patterns += ((mark, img))
+			found
+		}
+		def train(mark:Mark, img:BufferedImage) {
+			val res = recognizeToPair(img)
+			if (res.isEmpty) {
+				patterns += Sample(mark, img)
+			} else {
+				if (res.get._1 != mark) {
+					println("Contradictory training")
+					patterns -= res.get
+				} else {
+					if (difference(res.get._2, img) > exactMatchThreshold)
+						patterns += Sample (mark, img)
+				}
+			}
 		}
 		def recognize(img:BufferedImage):Option[Mark] = {
 			if (patterns.size==0) {
 				println("Warning: difference recognition without patterns")
 				Option.empty[Mark]
 			} else {
-				val matches = collection.mutable.Set[Mark]()
-				for ( (mark, pattern) <- patterns) {
-					val diff = abs(difference(pattern, img))
-					if (diff < exactMatchThreshold)
-						return Option(mark)
-					if (diff < probableMatchThreshold) {
-						matches += mark
-						if (matches.size > 1)
-							return Option.empty[Mark]
-					}
-				}
-				matches.headOption
+				recognizeToPair(img).map(p =>p._1)
 			}
 		}
 		def difference(img1:BufferedImage, img2:BufferedImage):Float
@@ -127,7 +142,7 @@ object Recognizer {
 	
 	class AskUser extends Cascade {
 		var userQuestions = 0
-		val next = Seq(new ColorDifference(10))
+		val next = Seq(new ColorDifference(10), new GrayDifference(5))
 		override def recognize(img:BufferedImage): Option[Mark] = {
 			val auto = super.recognize(img) 
 			if (auto.isEmpty) {
@@ -175,24 +190,33 @@ object Recognizer {
 		}
 	}
 	
+	trait BrightnessNormalizer extends Transforming {
+		def transform(img:BufferedImage) = {
+			val intensity = calcMeanIntensity(img)
+			val rv = adjustBrightness(img, 0xFF.toFloat / intensity)
+			val tmp = calcMeanIntensity(rv)
+			assert(tmp < 1.1 * 0xFF)
+			assert(tmp > 0.9 * 0xFF)
+			rv
+		}
+	}
 	class AutomaticRecognizer extends Cascade {
-		val simple = new Scaling {
-			val height = 18
-			val width = 18
-			val next = Seq(new ColorDifference(30))
+		def colorRecognitions = {
+			println("colors")
+			Seq(new GrayDifference(30), new ColorDifference(30))
 		}
 		val downScaled = new Scaling {
 			val height = 9
 			val width = 9
-			val next = Seq(new ColorDifference(30))
+			val next = colorRecognitions
 		}
 		val clip = new Clip() {
-			val next = Seq(new ColorDifference(30))
+			val next = colorRecognitions
 		}
-		val grayClip = new Clip() {
-			val next = Seq(new GrayDifference(30))
+		val brightnorm = new BrightnessNormalizer() {
+			val next = colorRecognitions ++ Seq(downScaled, clip) 
 		}
-		val next = Seq(simple, downScaled, clip, grayClip) 
+		val next = Seq(downScaled, clip)
 	}
 	/** Compares recognition result with user input
 	 *  Prints fails on console.
@@ -201,14 +225,16 @@ object Recognizer {
 		val user = new AskUser()
 		var total = 0.
 		var correct = 0.
+		var wrong = 0.
 		override def recognize(img:BufferedImage): Option[Mark] = {
 			val auto = super.recognize(img)
 			val manual = user.recognize(img)
 			total += 1
 			if (auto != manual) {
-				println("Recognized:"+auto+", manual:"+manual )
+				println("Recognized: "+auto+", manual: "+manual )
+				wrong+=1
 			} else {
-				println("Automatic recognition success:" + auto)
+//				println("Automatic recognition success: " + auto.getOrElse("None"))
 				correct += 1
 			}
 			manual

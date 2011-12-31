@@ -1,5 +1,5 @@
 package minefinder;
-import collection.mutable.{HashSet, SetProxy, Set}
+import collection.mutable.{SetProxy, Set}
 
 import collection.JavaConversions._
 
@@ -12,7 +12,7 @@ import java.io.{FileOutputStream, ObjectOutputStream, FileInputStream, ObjectInp
  * Call clear to prevent ondisk storage overwrite on finalization.
  */
 class SampleStorage(name:String) extends SetProxy[(Mark, BufferedImage)] {
-	val self = new HashSet[(Mark, BufferedImage)]
+	val self = Set[(Mark, BufferedImage)]()
 	def filename = name+".ser"
 	import SampleStorage._
 	load
