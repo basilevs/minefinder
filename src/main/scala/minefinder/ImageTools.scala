@@ -1,5 +1,7 @@
 package minefinder;
 
+import math.{abs, min}
+
 import java.awt.Image
 import java.awt.image.{BufferedImage, ImageFilter, FilteredImageSource, RGBImageFilter}
 import java.awt.Toolkit
@@ -9,6 +11,18 @@ import java.awt.{Graphics2D}
 
 object ImageTools {
 	private val bufferedBuilder = new BufferedImageBuilder()
+	def differencePerPixel(img1:BufferedImage, img2:BufferedImage):Float = {
+			val height = min(img1.getHeight, img2.getHeight)
+			val width = min(img1.getWidth, img2.getWidth)
+			(
+				for (
+					y <- 0 until height;
+					x <- 0 until width
+				) yield {
+					abs(sumRgb(img1.getRGB(x, y) - img2.getRGB(x, y)))
+				}
+			).sum / height / width
+		}
 	def compare(img1:BufferedImage, img2:BufferedImage):Int = {
 		val h = img1.getHeight - img2.getHeight
 		if (h != 0)
