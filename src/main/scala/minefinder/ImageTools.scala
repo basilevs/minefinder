@@ -4,7 +4,7 @@ import math.{abs, min}
 
 import java.awt.Image
 import java.awt.image.{BufferedImage, ImageFilter, FilteredImageSource, RGBImageFilter}
-import java.awt.Toolkit
+import java.awt.{Toolkit, RenderingHints}
 import java.awt.geom.{Line2D}
 import java.awt.{Graphics2D}
 
@@ -23,6 +23,23 @@ object ImageTools {
 				}
 			).sum / height / width
 		}
+	def toSize(img:Image, width:Int, height:Int) = {
+		val rv = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
+		val gc = rv.createGraphics
+//		gc.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_SPEED)
+		gc.drawImage(img, 0, 0, width, height, null)
+		gc.dispose
+		rv
+	}
+	def clip(img:BufferedImage, margin:Int) = {
+		val width = img.getWidth - 2 * margin
+		val height = img.getHeight - 2 * margin
+		val rv = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
+		val gc = rv.createGraphics
+		gc.drawImage(img, -2, -2, width, height, null)
+		gc.dispose
+		rv		
+	}
 	def compare(img1:BufferedImage, img2:BufferedImage):Int = {
 		val h = img1.getHeight - img2.getHeight
 		if (h != 0)
