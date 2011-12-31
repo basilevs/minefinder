@@ -25,7 +25,7 @@ class SampleStorage(name:String) extends SetProxy[(Mark, BufferedImage)] {
 				if (present._1 != pair._1) {
 					throw new RuntimeException("Can't store contradictory pattern.")
 				}
-				println("Refusing storing/loading dublicated pattern")
+//				println("Refusing storing/loading dublicated pattern")
 				return this
 			}
 		}
@@ -62,6 +62,7 @@ class SampleStorage(name:String) extends SetProxy[(Mark, BufferedImage)] {
 }
 
 object SampleStorage {
+	val instance = new SampleStorage("samples")
 	def toBytes(img:BufferedImage):Array[Byte] = {
 		val baos = new ByteArrayOutputStream();
 		ImageIO.write(img, "PNG", baos);

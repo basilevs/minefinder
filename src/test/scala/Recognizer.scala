@@ -7,7 +7,7 @@ import GridSearch._
 
 class RecognizerTest extends FunSuite {
 	def loadSamples:Set[(Mark, BufferedImage)] = {
-		val ss = new SampleStorage("samples")
+		val ss = SampleStorage.instance
 		val builder = Set.newBuilder[(Mark, BufferedImage)]
 		ss.clear
 		builder.result
