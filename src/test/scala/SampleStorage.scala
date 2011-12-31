@@ -1,10 +1,13 @@
 import org.scalatest.FunSuite
 import java.awt.image.{BufferedImage}
 
+import java.nio.file.Files.deleteIfExists
+import java.nio.file.Paths
+
 import minefinder.{Number, SampleStorage => Subject}
 import minefinder.ImageTools._
 
-class SampleStorage extends FunSuite {
+class SampleStorageTest extends FunSuite {
 	
 	val fields = Field.all
 	test("different images are non-equal") {
@@ -22,6 +25,7 @@ class SampleStorage extends FunSuite {
 	}
 	
 	test("save images") {
+		deleteIfExists(Paths.get("testStorage.ser"))
 		val storage1 = new Subject("testStorage")
 		try {
 			assert(storage1.size == 0)
@@ -40,6 +44,6 @@ class SampleStorage extends FunSuite {
 			storage2.clear
 			storage2.save
 		}
-		
+		deleteIfExists(Paths.get("testStorage.ser"))
 	}
 }
