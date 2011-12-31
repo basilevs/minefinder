@@ -169,7 +169,7 @@ object Recognizer {
 			if (auto != manual) {
 				println("Recognized:"+auto+", manual:"+manual )
 			} else {
-				println("Automatic recognition success")
+				println("Automatic recognition success:" + auto)
 				correct += 1
 			}
 			manual

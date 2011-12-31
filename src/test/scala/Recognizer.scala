@@ -9,7 +9,6 @@ class RecognizerTest extends FunSuite {
 	def loadSamples:Set[(Mark, BufferedImage)] = {
 		val ss = SampleStorage.instance
 		val builder = Set.newBuilder[(Mark, BufferedImage)]
-		ss.clear
 		builder.result
 	}
 	def validateRecognition(r:Recognizer, m:Mark, img:BufferedImage) {
@@ -45,6 +44,5 @@ class RecognizerTest extends FunSuite {
 		println("Recognition rate: " + t.correct/t.total)
 		t.persistent.storage.save
 		println("Saved "+ t.persistent.storage.size+" teaching samples")
-		t.persistent.storage.clear
 	}
 }
