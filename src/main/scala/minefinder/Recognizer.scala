@@ -12,12 +12,13 @@ trait Recognizer {
 object Recognizer {
 	class TrainError extends RuntimeException
 	class ContradictoryTraining extends TrainError
+	class UserFail extends TrainError
 	import ImageTools._
 	trait Difference  extends Recognizer {
 		val patterns = collection.mutable.Buffer[(Mark, BufferedImage)]()
 		def train(mark:Mark, img:BufferedImage) {
 			for (pattern <- patterns) {
-				if (abs(difference(img, pattern._2))<0.0001) {
+				if (abs(difference(img, pattern._2))<0.1) {
 					if (pattern._1 != mark)
 						throw new ContradictoryTraining()
 					println("Rejected similar image during difference training. Trained: "+ patterns.size)
@@ -27,17 +28,17 @@ object Recognizer {
 			}
 			patterns += ((mark, img))
 		}
-		def recognize(img:BufferedImage) = {
+		def recognize(img:BufferedImage):Option[Mark] = {
 			if (patterns.size==0) {
 				println("Warning: difference recognition without patterns")
 				Option.empty[Mark]
 			} else {
-				val (mark, diff) = patterns.iterator.map( p => (p._1, abs(difference(p._2, img))) ).minBy(_._2)
-				if (diff < 1.) {
-					Option(mark)
-				} else {
-					Option.empty[Mark]
+				for ( (mark, pattern) <- patterns) {
+					val diff = abs(difference(pattern, img))
+					if (diff < 1.)
+						return Option(mark)
 				}
+				Option.empty[Mark]
 			}
 		}
 		def difference(img1:BufferedImage, img2:BufferedImage):Float
@@ -45,16 +46,7 @@ object Recognizer {
 	
 	class ColorDifference(maxPixelDiff:Float) extends Difference { 
 		def difference(img1:BufferedImage, img2:BufferedImage) = {
-			val height = min(img1.getHeight, img2.getHeight)
-			val width = min(img1.getWidth, img2.getWidth)
-			(
-				for (
-					y <- 0 until height;
-					x <- 0 until width
-				) yield {
-					abs(sumRgb(img1.getRGB(x, y) - img2.getRGB(x, y)))
-				}
-			).sum / height / width / maxPixelDiff
+			differencePerPixel(img1, img2) / maxPixelDiff
 		}
 	}
 	
@@ -107,7 +99,7 @@ object Recognizer {
 	
 	class AskUser extends Cascade {
 		var userQuestions = 0
-		val next = Seq(new ColorDifference(2))
+		val next = Seq(new ColorDifference(10))
 		override def recognize(img:BufferedImage): Option[Mark] = {
 			val auto = super.recognize(img) 
 			if (auto.isEmpty) {
@@ -150,7 +142,7 @@ object Recognizer {
 			dialog.p1.revalidate
 			dialog.open
 			if (selectedMark.isEmpty) 
-				throw new RuntimeException("User failure")
+				throw new UserFail
 			selectedMark
 		}
 	}
@@ -168,8 +160,8 @@ object Recognizer {
 	*/
 	trait Verifying extends Cascade {
 		val user = new AskUser()
-		var total = 0
-		var correct = 0
+		var total = 0.
+		var correct = 0.
 		override def recognize(img:BufferedImage): Option[Mark] = {
 			val auto = super.recognize(img)
 			val manual = user.recognize(img)
@@ -187,9 +179,7 @@ object Recognizer {
 			user.train(mark, img)
 		}
 	}
-	class PersistentLearner(name:String) extends Recognizer {
-		val storage = new SampleStorage(name)
-		storage.load
+	class PersistentLearner(val storage:SampleStorage) extends Recognizer {
 		def recognize(img:BufferedImage) : Option[Mark] = Option.empty[Mark]
 		def train(mark:Mark, img:BufferedImage) {
 			storage += ((mark, img))
@@ -198,7 +188,7 @@ object Recognizer {
 	/** Uses sample collection and user input to train algorithms.
 	 */
 	class Training extends Verifying {
-		val persistent = new PersistentLearner("samples")
+		val persistent = new PersistentLearner(SampleStorage.instance)
 		val automatic = new AutomaticRecognizer()
 		val next = collection.mutable.Set[Recognizer](automatic)
 		for (pair <- persistent.storage ) {
