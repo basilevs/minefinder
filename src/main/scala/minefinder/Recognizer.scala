@@ -15,10 +15,12 @@ object Recognizer {
 	class UserFail extends TrainError
 	import ImageTools._
 	trait Difference  extends Recognizer {
+		val exactMatchThreshold:Float
+		val probableMatchThreshold:Float
 		val patterns = collection.mutable.Buffer[(Mark, BufferedImage)]()
 		def train(mark:Mark, img:BufferedImage) {
 			for (pattern <- patterns) {
-				if (abs(difference(img, pattern._2))<0.1) {
+				if (abs(difference(img, pattern._2))<exactMatchThreshold) {
 					if (pattern._1 != mark)
 						throw new ContradictoryTraining()
 					println("Rejected similar image during difference training. Trained: "+ patterns.size)
@@ -33,32 +35,50 @@ object Recognizer {
 				println("Warning: difference recognition without patterns")
 				Option.empty[Mark]
 			} else {
+				val matches = collection.mutable.Set[Mark]()
 				for ( (mark, pattern) <- patterns) {
 					val diff = abs(difference(pattern, img))
-					if (diff < 1.)
+					if (diff < exactMatchThreshold)
 						return Option(mark)
+					if (diff < probableMatchThreshold) {
+						matches += mark
+						if (matches.size > 1)
+							return Option.empty[Mark]
+					}
 				}
-				Option.empty[Mark]
+				matches.headOption
 			}
 		}
 		def difference(img1:BufferedImage, img2:BufferedImage):Float
 	}
 	
 	class ColorDifference(maxPixelDiff:Float) extends Difference { 
+		val probableMatchThreshold = maxPixelDiff
+		val exactMatchThreshold = 2.F
 		def difference(img1:BufferedImage, img2:BufferedImage) = {
-			differencePerPixel(img1, img2) / maxPixelDiff
+			differencePerPixel(img1, img2)
 		}
 	}
 	
+	class GrayDifference(maxPixelDiff:Float) extends Difference { 
+		val probableMatchThreshold = maxPixelDiff
+		val exactMatchThreshold = 2.F
+		def difference(img1:BufferedImage, img2:BufferedImage) = {
+			grayDifferencePerPixel(img1, img2)
+		}
+	}
 	trait Cascade  extends Recognizer {
 		val next:Iterable[Recognizer]
 		def recognize(img:BufferedImage): Option[Mark] = {
+			next.flatMap(_.recognize(img)).headOption
+/*
 			val results = next.flatMap(_.recognize(img)).toSet
 			if (results.size == 1) {
 				results.headOption
 			} else {
 				Option.empty[Mark]
 			}
+*/
 		}
 		def train(mark:Mark, img:BufferedImage) {
 			next.foreach(_.train(mark, img))
@@ -68,19 +88,28 @@ object Recognizer {
 	trait Transforming extends Cascade {
 		override def recognize(img:BufferedImage): Option[Mark] = {
 			val t = transform(img)
-			super.recognize(t)
+			if (t == null) {
+				Option.empty[Mark]
+			} else {
+				super.recognize(t)
+			}
 		}
 		override def train(mark:Mark, img:BufferedImage) {
 			val t = transform(img)
-			super.train(mark, t)
+			if (t != null) {
+				super.train(mark, t)
+			}
 		}
 		def transform(img:BufferedImage): BufferedImage
 	}
 	
-	trait RemoveBoundaryNoise extends Transforming {
-		def isNoise:Function[Int, Boolean]
+	trait Clip extends Transforming {
 		def transform(img:BufferedImage) = {
-			img
+			if (img.getHeight > 10 && img.getWidth > 10) {
+				clip(img, 2)
+			} else {
+				null
+			}
 		}
 	}
 	
@@ -89,11 +118,10 @@ object Recognizer {
 		val width:Int
 		def transform(img:BufferedImage) = {
 //			println("Height: "+img.getHeight+", width: "+ img.getWidth)
-			assert(img.getHeight <= height+1)
-			assert(img.getHeight >= height-1)
-			assert(img.getWidth <= width+1)
-			assert(img.getWidth >= width-1)			
-			img
+			if (abs(img.getHeight - height) < 2 && abs(img.getWidth - width) < 2)
+				img 
+			else
+				toSize(img, width, height)
 		}
 	}
 	
@@ -153,7 +181,18 @@ object Recognizer {
 			val width = 18
 			val next = Seq(new ColorDifference(30))
 		}
-		val next = Seq(simple) 
+		val downScaled = new Scaling {
+			val height = 9
+			val width = 9
+			val next = Seq(new ColorDifference(30))
+		}
+		val clip = new Clip() {
+			val next = Seq(new ColorDifference(30))
+		}
+		val grayClip = new Clip() {
+			val next = Seq(new GrayDifference(30))
+		}
+		val next = Seq(simple, downScaled, clip, grayClip) 
 	}
 	/** Compares recognition result with user input
 	 *  Prints fails on console.

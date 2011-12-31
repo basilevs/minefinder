@@ -14,13 +14,37 @@ class RecognizerTest extends FunSuite {
 	def validateRecognition(r:Recognizer, m:Mark, img:BufferedImage) {
 		r.train(m, img)
 		val result = r.recognize(img)
-		assert(result.isEmpty || result.get == m)
+		assert(result.get == m)
 	}
 	def testRecognizer(r:Recognizer) {
 		loadSamples.foreach(pair => validateRecognition(r, pair._1, pair._2))
 	}
 	test("ColorDifference") {
 		val subject = new ColorDifference(2)
+		testRecognizer(subject)
+	}
+	test("Clip") {
+		val subject = new Clip() {
+			val next = Seq(new ColorDifference(30))
+		}
+		testRecognizer(subject)
+	}
+	test("Gray") {
+		val subject = new GrayDifference(30)
+		testRecognizer(subject)
+	}
+	test("ClippedGray") {
+		val subject = new Clip() {
+			val next = Seq(new GrayDifference(30))
+		}
+		testRecognizer(subject)
+	}
+	test("ScalingTest") {
+		val subject = new Scaling {
+			val height = 9
+			val width = 9
+			val next = Seq(new ColorDifference(30))
+		}
 		testRecognizer(subject)
 	}
 	def imageToCells(img:BufferedImage):Iterable[BufferedImage] = {

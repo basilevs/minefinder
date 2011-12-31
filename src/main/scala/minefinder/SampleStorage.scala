@@ -13,7 +13,6 @@ import java.io.{FileOutputStream, ObjectOutputStream, FileInputStream, ObjectInp
  */
 class SampleStorage(name:String) extends SetProxy[(Mark, BufferedImage)] {
 	val self = new HashSet[(Mark, BufferedImage)]
-	val difcalc = new Recognizer.ColorDifference(2) 
 	def filename = name+".ser"
 	import SampleStorage._
 	load
@@ -21,7 +20,7 @@ class SampleStorage(name:String) extends SetProxy[(Mark, BufferedImage)] {
 		assert(pair._2 != null)
 		for(present <- self) {
 			assert(present._2 != null)
-			if (difcalc.difference(present._2, pair._2) < 0.0001) {
+			if (ImageTools.differencePerPixel(present._2, pair._2) < 2) {
 				if (present._1 != pair._1) {
 					throw new RuntimeException("Can't store contradictory pattern.")
 				}

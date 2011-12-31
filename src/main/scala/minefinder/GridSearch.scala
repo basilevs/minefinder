@@ -90,16 +90,6 @@ class Peak(val x:Int, val width: Int) {
 object GridSearch {
 	import ImageTools._
 	//Detects dark lines
-	def calcMeanIntensity(img:BufferedImage) = {
-		var sum = 0.
-		for (
-			y <- 0 until img.getHeight;
-			x <- 0 until img.getWidth
-		) {
-			sum += sumRgb(img.getRGB(x, y))
-		}
-		sum / img.getHeight / img.getWidth
-	}
 	def detectPeaks(data:Array[Int], height:Int):Seq[Peak] = {
 		var inPeak = false
 		var start = 0
