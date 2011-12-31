@@ -68,8 +68,8 @@ class Grid(x:Axis, y:Axis) {
 		}
 	}
 	def getCellImage(x:Int, y:Int, img:BufferedImage) = {
-		assert(x>0)
-		assert(y>0)
+		assert(x>=0)
+		assert(y>=0)
 		val rv = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
 		val gc = rv.createGraphics
 		val cellTop = top + height*y
