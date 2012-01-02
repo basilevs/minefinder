@@ -58,7 +58,7 @@ class RecognizerTest extends FunSuite {
 				}
 			}
 			val times = bm.runBenchmark(3)
-			prefix+": recognition rate: " + (correct/total) + ", error rate: " +(wrong/total) +", "+ times
+			prefix+": tests: " +total+ ", recognition rate: " + (correct/total) + ", error rate: " +(wrong/total) +", "+ times
 		}
 		def print = println(go)
 	}
@@ -100,9 +100,16 @@ class RecognizerTest extends FunSuite {
 		}
 		testRecognizer(subject)
 	}
-	test ("Automatic Recognizer") {
+	test ("Automatic Recognizer", Active) {
 		val subject = new AutomaticRecognizer() 
-		testRecognizer(subject)
+		try {
+			testRecognizer(subject)
+		} catch {
+			case e:ContradictoryRecognition => {
+				Error.handle(e)
+				throw e
+			}
+		}
 	}
 	def imageToCells(img:BufferedImage):Iterable[BufferedImage] = {
 		val grid  = detectGrid(img)
@@ -113,7 +120,7 @@ class RecognizerTest extends FunSuite {
 			) yield grid.getCellImage(x, y, img)
 		)
 	}
-	test("ask user about a few samples") {
+	ignore("ask user about a few samples") {
 		val t = new Training()
 		println("Loaded "+ t.persistent.storage.size+" teaching samples")
 		val cells = Field.all.flatMap(f => imageToCells(f.image))
