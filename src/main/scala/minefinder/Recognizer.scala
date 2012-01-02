@@ -26,6 +26,7 @@ object Recognizer {
 		val patterns = collection.mutable.Buffer[Pair]()
 		def recognizeToPair(img:BufferedImage):Option[Pair] = {
 			var found = Option.empty[Pair]
+			var foundDiff = probableMatchThreshold + 1
 			for ( pair <- patterns) {
 				val mark = pair._1
 				val pattern = pair._2
@@ -33,11 +34,14 @@ object Recognizer {
 				if (diff < exactMatchThreshold)
 					return Option(pair)
 				if (diff < probableMatchThreshold) {
-					if (found.getOrElse(mark) != mark) {
+					if (found.getOrElse(pair).mark != mark) {
 						println("Contradictory recognition: " + found.get._1 +", "+mark)
 						throw new ContradictoryRecognition(Seq(found.get, pair), img)
 					}
-					found = Option(pair)					
+					if (foundDiff > diff) {
+						found = Option(pair)					
+						foundDiff = diff 
+					}
 				}
 			}
 			found
@@ -203,7 +207,7 @@ object Recognizer {
 	class AutomaticRecognizer extends Cascade {
 		def colorRecognitions = {
 			println("colors")
-			Seq(new GrayDifference(30), new ColorDifference(30))
+			Seq(new GrayDifference(10), new ColorDifference(30))
 		}
 		val downScaled = new Scaling {
 			val height = 9
