@@ -15,10 +15,8 @@ trait Recognizer {
 }
 
 object Recognizer {
-	class TrainError extends RuntimeException
-	class ContradictoryTraining extends TrainError
-	class UserFail extends TrainError
 	import ImageTools._
+	import Error._
 	trait Difference  extends Recognizer {
 		type Pair = Sample
 		val exactMatchThreshold:Float
@@ -35,8 +33,10 @@ object Recognizer {
 					return Option(pair)
 				if (diff < probableMatchThreshold) {
 					if (found.getOrElse(pair).mark != mark) {
-						println("Contradictory recognition: " + found.get._1 +", "+mark)
-						throw new ContradictoryRecognition(Seq(found.get, pair), img)
+//						Thread.dumpStack
+//						println("Contradictory recognition: " + found.get._1 +", "+mark)
+						val toShow = possibleMatches(Seq((found.get, foundDiff), (pair, diff)), img)
+						showComponent(toShow, false,  this.getClass.getName + " matches with threshold: " +probableMatchThreshold)
 					}
 					if (foundDiff > diff) {
 						found = Option(pair)					
@@ -51,12 +51,11 @@ object Recognizer {
 			if (res.isEmpty) {
 				patterns += Sample(mark, img)
 			} else {
-				if (res.get._1 != mark) {
-					println("Contradictory training")
-					patterns -= res.get
-				} else {
-					if (difference(res.get._2, img) > exactMatchThreshold)
-						patterns += Sample (mark, img)
+				val contr = res.get._1 != mark
+				if (difference(res.get._2, img) > exactMatchThreshold) {
+					patterns += Sample (mark, img)
+				} else if (contr) {
+					println("Contradictory training")				
 				}
 			}
 		}
@@ -75,7 +74,9 @@ object Recognizer {
 		val probableMatchThreshold = maxPixelDiff
 		val exactMatchThreshold = 2.F
 		def difference(img1:BufferedImage, img2:BufferedImage) = {
-			differencePerPixel(img1, img2)
+			val rv = differencePerPixel(img1, img2)
+//			println("Color difference: "+rv)
+			rv
 		}
 	}
 	
@@ -83,7 +84,9 @@ object Recognizer {
 		val probableMatchThreshold = maxPixelDiff
 		val exactMatchThreshold = 2.F
 		def difference(img1:BufferedImage, img2:BufferedImage) = {
-			grayDifferencePerPixel(img1, img2)
+			val rv = grayDifferencePerPixel(img1, img2)
+//			println("Gray difference: "+rv)
+			rv
 		}
 	}
 	trait Cascade  extends Recognizer {
@@ -207,7 +210,7 @@ object Recognizer {
 	class AutomaticRecognizer extends Cascade {
 		def colorRecognitions = {
 			println("colors")
-			Seq(new GrayDifference(10), new ColorDifference(30))
+			Seq(new GrayDifference(9), new ColorDifference(60))
 		}
 		val downScaled = new Scaling {
 			val height = 9

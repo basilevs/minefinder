@@ -11,10 +11,10 @@ class RecognizerTest extends FunSuite {
 	def validateRecognition(r:Recognizer, m:Mark, img:BufferedImage) {
 		r.train(m, img)
 		val result = r.recognize(img)
-		assert(result.get == m)
-	}
-	def testRecognizer(r:Recognizer) {
-		SampleStorage.instance.foreach(pair => validateRecognition(r, pair._1, pair._2))
+		if (result.get != m) {
+			Thread.dumpStack
+			assert(false)
+		}
 	}
 	val training = collection.mutable.Buffer[(Mark, BufferedImage)]()
 	val testing = collection.mutable.Buffer[(Mark, BufferedImage)]()
@@ -39,17 +39,23 @@ class RecognizerTest extends FunSuite {
 		assert(training.size>0)
 		def recognize(img:BufferedImage, mark:Mark) {
 			total +=1
+			assert(total>0)
 			val rv = subject.recognize(img)
 			if (!rv.isEmpty) {
 				if (rv.get == mark) {
 					correct+=1
+					assert(correct>0)
 				} else {
 					wrong += 1
+					assert(wrong>0)
 					println(prefix+": recognized: "+rv.get+", truth: "+ mark)
 				}
 			}
 		}
-		for (pair <- training) subject.train(pair._1, pair._2)
+		for (pair <- training) {
+			validateRecognition(subject, pair._1, pair._2)
+		}
+		val format = "%s: recrate: %f2, errrrate: %f2, times: %s"
 		def go = {
 			assert(testing.size > 0)
 			val bm = new scala.testing.Benchmark() {
@@ -57,33 +63,28 @@ class RecognizerTest extends FunSuite {
 					for (pair <- testing) recognize(pair._2, pair._1)
 				}
 			}
-			val times = bm.runBenchmark(3)
-			prefix+": tests: " +total+ ", recognition rate: " + (correct/total) + ", error rate: " +(wrong/total) +", "+ times
+			val times = bm.runBenchmark(2)
+			format.format(prefix, correct.toFloat/total, wrong.toFloat/total, times.toString)
 		}
 		def print = println(go)
 	}
 	test("ColorDifference") {
-		val subject = new ColorDifference(2)
-		testRecognizer(subject)
-		println(new RecognizerQuality("ColorDifference", new ColorDifference(30)).go)
-	}
-	test("Clip") {
-		val subject = new Clip() {
-			val next = Seq(new ColorDifference(2))
-		}
-		testRecognizer(subject)
+		new RecognizerQuality("ColorDifference", new ColorDifference(60)).print
 	}
 	test("Gray") {
-		val subject = new GrayDifference(2)
-		testRecognizer(subject)
-		println(new RecognizerQuality("GrayDifference", new GrayDifference(10)).go)
+		new RecognizerQuality("Gray", new GrayDifference(9)).print
+	}
+	test("ClippedColor") {
+		val subject = new Clip() {
+			val next = Seq(new ColorDifference(50))
+		}
+		new RecognizerQuality("ClippedColor", subject).print
 	}
 	test("ClippedGray") {
-		class ClippedGray(th:Int) extends Clip {
-			val next = Seq(new GrayDifference(th))
+		class ClippedGray extends Clip {
+			val next = Seq(new GrayDifference(8))
 		}
-		testRecognizer(new ClippedGray(2))
-		println(new RecognizerQuality("ClippedGray", new ClippedGray(2)).go)
+		new RecognizerQuality("ClippedGray", new ClippedGray).print
 	}
 	test("ScalingTest") {
 		class ScalingTest(th:Int) extends Scaling {
@@ -91,19 +92,18 @@ class RecognizerTest extends FunSuite {
 			val width = 9
 			val next = Seq(new ColorDifference(th))
 		}
-		testRecognizer(new ScalingTest(2))
-		println(new RecognizerQuality("ScalingTest", new ScalingTest(30)).go)
+		new RecognizerQuality("ScalingTest", new ScalingTest(60)).print
 	}
 	test("BrightnessNormalizer") {
 		val subject = new BrightnessNormalizer() {
-			val next = Seq(new ColorDifference(2))
+			val next = Seq(new ColorDifference(60))
 		}
-		testRecognizer(subject)
+		new RecognizerQuality("BrightnessNormalizer", subject).print
 	}
 	test ("Automatic Recognizer", Active) {
 		val subject = new AutomaticRecognizer() 
 		try {
-			testRecognizer(subject)
+			new RecognizerQuality("AutomaticRecognizer", subject).print
 		} catch {
 			case e:ContradictoryRecognition => {
 				Error.handle(e)
