@@ -3,7 +3,7 @@ package minefinder;
 import math.{abs, min}
 
 import java.awt.Image
-import java.awt.image.{BufferedImage, ImageFilter, FilteredImageSource, RGBImageFilter}
+import java.awt.image.{BufferedImage, DirectColorModel, ImageFilter, FilteredImageSource, RGBImageFilter, Raster, DataBufferInt}
 import java.awt.{Toolkit, RenderingHints}
 import java.awt.geom.{Line2D}
 import java.awt.{Graphics2D}
@@ -47,21 +47,37 @@ object ImageTools {
 	def grayDifferencePerPixel(img1:BufferedImage, img2:BufferedImage):Float = {
 		differencePerPixel(img1, img2, (a, b) => (sumRgb(a) - sumRgb(b) ) / 3 )
 	}
-	def checkFoRGB(img:BufferedImage) = {
-		img.getType == BufferedImage.TYPE_INT_ARGB ||img.getType == BufferedImage.TYPE_INT_RGB 
+	def checkForRGB(img:BufferedImage) = {
+		if (img.getType != BufferedImage.TYPE_INT_ARGB && img.getType != BufferedImage.TYPE_INT_RGB) {
+			false
+		} else {
+			val cm = img.getColorModel.asInstanceOf[DirectColorModel]
+			val r = img.getData
+			cm.getRedMask() == 0xff0000 && cm.getGreenMask() == 0xff00 && cm.getBlueMask() == 0xff &&
+			r.getParent == null && r.getMinX == 0 && r.getMinY == 0
+		}
+		
 	}
 	def differencePerPixelFast(img1:BufferedImage, img2:BufferedImage, diff:(Int, Int) => Float):Option[Float] = {
-			val imgs = Seq(img1, img2)
-					if (!checkFoRGB(img1) || !checkFoRGB(img2))
-						None
-	}  else {
-		val dbs =
-	}
-	val height = min(img1.getHeight, img2.getHeight)
-			val width = min(img1.getWidth, img2.getWidth){}
-
+		val imgs = Seq(img1, img2)
+		if (img1.getWidth != img2.getWidth || imgs.exists(!checkForRGB(_))) {
+			None
+		}  else {
+			val buffers = imgs.map(_.getData.getDataBuffer.asInstanceOf[DataBufferInt].getData)
+			val length = buffers.map(_.length).min
+			var sum = 0.D
+			for (idx <-0 until length) {
+				sum+=abs(diff(buffers(0)(idx), buffers(1)(idx)))
+			}
+			Option((sum / length).toFloat)
+		}
+		
+		
 	}
 	def differencePerPixel(img1:BufferedImage, img2:BufferedImage, diff:(Int, Int) => Float):Float = {
+		differencePerPixelFast(img1, img2, diff).getOrElse(differencePerPixelCompatible(img1, img2, diff))
+	}
+	def differencePerPixelCompatible(img1:BufferedImage, img2:BufferedImage, diff:(Int, Int) => Float):Float = {
 		val height = min(img1.getHeight, img2.getHeight)
 		val width = min(img1.getWidth, img2.getWidth)
 		var sum = 0.D
