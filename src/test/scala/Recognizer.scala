@@ -68,6 +68,11 @@ class RecognizerTest extends FunSuite {
 		}
 		def print = println(go)
 	}
+	test("colorDifference function") {
+		val img = Field.all(0).image
+		assert(ImageTools.differencePerPixel(img, img)==0)
+		
+	}
 	test("ColorDifference") {
 		new RecognizerQuality("ColorDifference", new ColorDifference(75)).print
 	}

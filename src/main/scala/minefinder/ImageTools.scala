@@ -47,6 +47,20 @@ object ImageTools {
 	def grayDifferencePerPixel(img1:BufferedImage, img2:BufferedImage):Float = {
 		differencePerPixel(img1, img2, (a, b) => (sumRgb(a) - sumRgb(b) ) / 3 )
 	}
+	def checkFoRGB(img:BufferedImage) = {
+		img.getType == BufferedImage.TYPE_INT_ARGB ||img.getType == BufferedImage.TYPE_INT_RGB 
+	}
+	def differencePerPixelFast(img1:BufferedImage, img2:BufferedImage, diff:(Int, Int) => Float):Option[Float] = {
+			val imgs = Seq(img1, img2)
+					if (!checkFoRGB(img1) || !checkFoRGB(img2))
+						None
+	}  else {
+		val dbs =
+	}
+	val height = min(img1.getHeight, img2.getHeight)
+			val width = min(img1.getWidth, img2.getWidth){}
+
+	}
 	def differencePerPixel(img1:BufferedImage, img2:BufferedImage, diff:(Int, Int) => Float):Float = {
 		val height = min(img1.getHeight, img2.getHeight)
 		val width = min(img1.getWidth, img2.getWidth)

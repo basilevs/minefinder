@@ -18,8 +18,8 @@ class Field(val columns:Int, marks:Seq[Option[Mark]]) extends Iterable[Cell] {
 		val x = pos % columns
 		val y = pos / columns
 		def neighbours = (for (
-			xn <- math.max(x-1, 0) to math.min(x+1, columns);
-			yn <- math.max(0, y-1) to math.min(y+1, rows);
+			xn <- math.max(x-1, 0) to math.min(x+1, columns-1);
+			yn <- math.max(0, y-1) to math.min(y+1, rows-1);
 			if (xn != x && yn != y)
 		) yield {val pos = yn*columns + xn; cells(pos) } ).toSeq
 		override def toString = "x:%d, y:%d, mark:%s".format(x, y, mark.getOrElse("None").toString)
