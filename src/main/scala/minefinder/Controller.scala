@@ -37,14 +37,18 @@ object Controller extends App {
 				val cImg = grid.getCellImage(x, y, img)
 				productionRecognizer.recognize(cImg)
 			}
-			val f = new Field(grid.columns, marks.toSeq)
-			val cells = Field.getEmptyClosedCells(f)
-			for (c <- cells) {
-				val (x, y) = grid.getMiddle(c.x, c.y)
-				window.click(x, y)
-			}
 			SampleStorage.instance.save
-		} catch {
+			val f = new Field(grid.columns, marks.toSeq)
+			val cells = Field.getCellsWithMineFlag(f)
+			for (c <- cells) {
+				val (x, y) = grid.getMiddle(c._1.x, c._1.y)
+				if (c._2) {
+					window.rclick(x, y)
+				} else {
+					window.lclick(x, y)
+				}
+			}
+		} catch { //Exceptions are not propagated from within JNA hook
 			case a:Exception => {
 				doWork = false
 				println(a)
@@ -63,5 +67,5 @@ object Controller extends App {
 	}
 	while (doWork)
 		Window.EnumWindows(windowHook)
-	
+	println("Job complete")
 }

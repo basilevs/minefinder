@@ -116,17 +116,22 @@ class Window(handle:HWND) {
 	}
 	def root = new Window(FullUser32.INSTANCE.GetAncestor(handle, FullUser32.GA_ROOT))
 
-	def click(x:Int, y:Int) {
+	private def clickInternal(x:Int, y:Int, flag:Int) {
 		val robot = new Robot()
 		root.rootRaised {
 			val rect = new WinDef.RECT()
 			if (!User32.GetWindowRect(handle, rect))
 				throw new WindowRectException(Window.FormatLastError)
 			robot.mouseMove(rect.left + x, rect.top+y)
-			robot.mousePress(InputEvent.BUTTON1_MASK);
-			robot.mouseRelease(InputEvent.BUTTON1_MASK);
-			
+			robot.mousePress(flag);
+			robot.mouseRelease(flag);		
 		}
+	}
+	def lclick(x:Int, y:Int) {
+		clickInternal(x, y, InputEvent.BUTTON1_MASK)
+	}
+	def rclick(x:Int, y:Int) {
+		clickInternal(x, y, InputEvent.BUTTON2_MASK)
 	}
 	def captureImage = {
 		val robot = new Robot()

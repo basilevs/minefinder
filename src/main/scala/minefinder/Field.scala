@@ -22,19 +22,37 @@ class Field(val columns:Int, marks:Seq[Option[Mark]]) extends Iterable[Cell] {
 			yn <- math.max(0, y-1) to math.min(y+1, rows);
 			if (xn != x && yn != y)
 		) yield {val pos = yn*columns + xn; cells(pos) } ).toSeq
+		override def toString = "x:%d, y:%d, mark:%s".format(x, y, mark.getOrElse("None").toString)
 	}
 	def iterator = cells.iterator
 }
 
 object Field {
-	def getEmptyClosedCells(cells:Iterable[Cell]) = {
+	def cellsToString(cells:Iterable[Cell]) {
+		val sb = new StringBuffer()
+		for (c <- cells) {
+			sb.append(c.toString+" ")
+		}
+		sb.toString
+	}
+	def getCellsWithMineFlag(cells:Iterable[Cell]) = {
 		cells.flatMap(c => c.mark match {
-			case Some(Number(n)) => {
+			case Some(Number(n)) => { //Mine or unknown count is exactly n
 				val ns = c.neighbours
-				if(n==(ns.count(_.mayHaveMine)))
-					ns.filter(!_.mayHaveMine)
-				else
+				
+				val rv1 = if(n==(ns.count(_.mayHaveMine))) {
+					println("Found all empties for cell "+cellsToString(Seq(c)))
+					ns.filter(_.mark == Closed).map((_, true))
+				} else {
 					Seq()
+				}
+				val rv2 = if (n==(ns.count(_.mark == Mine))) {
+					println("Found all mines for cell "+cellsToString(Seq(c)))
+					ns.filter(_.mark != Mine).map((_, false))
+				} else {
+					Seq()
+				}
+				rv2
 			}
 			case _ => Seq()
 		})
