@@ -3,6 +3,7 @@ package minefinder;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.win32.W32APIOptions;
+import com.sun.jna.platform.win32.WinDef.HWND;
 
 interface FullUser32 extends com.sun.jna.platform.win32.User32 {
 	FullUser32 INSTANCE = (FullUser32) Native.loadLibrary("user32", FullUser32.class,
