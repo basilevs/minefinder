@@ -16,8 +16,8 @@ class RecognizerTest extends FunSuite {
 			assert(false)
 		}
 	}
-	val training = collection.mutable.Buffer[(Mark, BufferedImage)]()
-	val testing = collection.mutable.Buffer[(Mark, BufferedImage)]()
+	val training = collection.mutable.Buffer[Sample]()
+	val testing = collection.mutable.Buffer[Sample]()
 	var count = 0
 	if(SampleStorage.instance.size >0) {
 		for (sample <- SampleStorage.instance) {
@@ -55,7 +55,7 @@ class RecognizerTest extends FunSuite {
 		for (pair <- training) {
 			validateRecognition(subject, pair._1, pair._2)
 		}
-		val format = "%s: recrate: %f2, errrrate: %f2, times: %s"
+		val format = "%20s: rate: %.3f, errrrate: %.3f, times: %s"
 		def go = {
 			assert(testing.size > 0)
 			val bm = new scala.testing.Benchmark() {
@@ -63,16 +63,16 @@ class RecognizerTest extends FunSuite {
 					for (pair <- testing) recognize(pair._2, pair._1)
 				}
 			}
-			val times = bm.runBenchmark(2)
+			val times = bm.runBenchmark(1)
 			format.format(prefix, correct.toFloat/total, wrong.toFloat/total, times.toString)
 		}
 		def print = println(go)
 	}
 	test("ColorDifference") {
-		new RecognizerQuality("ColorDifference", new ColorDifference(60)).print
+		new RecognizerQuality("ColorDifference", new ColorDifference(75)).print
 	}
 	test("Gray") {
-		new RecognizerQuality("Gray", new GrayDifference(9)).print
+		new RecognizerQuality("Gray", new GrayDifference(10)).print
 	}
 	test("ClippedColor") {
 		val subject = new Clip() {
@@ -96,9 +96,19 @@ class RecognizerTest extends FunSuite {
 	}
 	test("BrightnessNormalizer") {
 		val subject = new BrightnessNormalizer() {
-			val next = Seq(new ColorDifference(60))
+			val next = Seq(new GrayDifference(8))
 		}
 		new RecognizerQuality("BrightnessNormalizer", subject).print
+	}
+	test("ClippedBrightnessNormalizer") {
+		val subject = new Clip() {
+			val next = Seq(
+				new BrightnessNormalizer() {
+					val next= Seq(new GrayDifference(8))
+				}
+			)
+		}
+		new RecognizerQuality("ClippedBrightnessNormalizer", subject).print
 	}
 	test ("Automatic Recognizer", Active) {
 		val subject = new AutomaticRecognizer() 
@@ -120,7 +130,7 @@ class RecognizerTest extends FunSuite {
 			) yield grid.getCellImage(x, y, img)
 		)
 	}
-	ignore("ask user about a few samples") {
+	test("ask user about a few samples") {
 		val t = new Training()
 		println("Loaded "+ t.persistent.storage.size+" teaching samples")
 		val cells = Field.all.flatMap(f => imageToCells(f.image))

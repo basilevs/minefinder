@@ -1,5 +1,5 @@
 package minefinder;
-import collection.mutable.{SetProxy, Set}
+import collection.mutable.{Buffer}
 
 import collection.JavaConversions._
 
@@ -11,24 +11,34 @@ import java.io.{FileOutputStream, ObjectOutputStream, FileInputStream, ObjectInp
  * Persistent sample storage for algorithm teaching.
  * Call clear to prevent ondisk storage overwrite on finalization.
  */
-class SampleStorage(name:String) extends SetProxy[(Mark, BufferedImage)] {
-	val self = Set[(Mark, BufferedImage)]()
+class SampleStorage(name:String) extends collection.mutable.Set[Sample] {
+	private val self = Buffer[Sample]()
+	val listeners = Buffer[Sample => Unit]()
 	def filename = name+".ser"
 	import SampleStorage._
 	load
-	override def += (pair: (Mark, BufferedImage)): SampleStorage.this.type = {
+	def find(s:Sample):Option[Sample] = {
+		self.find(pair=>ImageTools.differencePerPixel(s.img, pair.img) < 2)
+	}
+	def contains(s:Sample):Boolean = {
+		val res = find(s)
+		!res.isEmpty && res.get.mark == s.mark
+	}
+	def iterator = self.iterator
+	def += (pair: Sample): SampleStorage.this.type = {
 		assert(pair._2 != null)
-		for(present <- self) {
-			assert(present._2 != null)
-			if (ImageTools.differencePerPixel(present._2, pair._2) < 2) {
-				if (present._1 != pair._1) {
-					throw new RuntimeException("Can't store contradictory pattern.")
-				}
-//				println("Refusing storing/loading dublicated pattern")
-				return this
-			}
+		val res = find(pair)
+		if (!res.isEmpty) {
+			if(res.get.mark != pair.mark)
+				throw new TrainConflict(Seq(res.get), pair)
 		}
 		self += pair
+		listeners.foreach(_(pair))
+		this
+	}
+	def -= (pair: Sample):SampleStorage.this.type = {
+		assert(pair.img != null)
+		find(pair).foreach(self.-=)
 		this
 	}
 	def load {
@@ -39,7 +49,7 @@ class SampleStorage(name:String) extends SetProxy[(Mark, BufferedImage)] {
 			try {
 				while(true) {
 					val data = ois.readObject().asInstanceOf[(Mark, Array[Byte])]
-					this += ((data._1, toImage(data._2)))
+					self += Sample(data._1, toImage(data._2))
 				}
 			} catch {
 				case e:EOFException =>

@@ -11,6 +11,7 @@ import com.sun.jna.Pointer
 
 import java.awt.image.{BufferedImage}
 import java.awt.Robot
+import java.awt.event.InputEvent
 
 object Window {
 	def EnumWindows(stopcondition:(Window) => Boolean) = {
@@ -38,7 +39,7 @@ object Window {
 	def GetWindowByTitle(title:String) = {
 		FindWindow(x => x.text == title)
 	}
-	def GetMineSweeper = GetWindowByTitle("Minesweeper")
+	def GetMineSweeper = GetWindowByTitle("Minesweeper") orElse GetWindowByTitle("Сапер")
 	def FormatLastError = {
 		val buffer = java.nio.CharBuffer.allocate(500)
 		val length = Kernel32.FormatMessage(WinBase.FORMAT_MESSAGE_FROM_SYSTEM, Pointer.NULL, Kernel32.GetLastError, 0, buffer, buffer.length, Pointer.NULL) 
@@ -115,7 +116,18 @@ class Window(handle:HWND) {
 	}
 	def root = new Window(FullUser32.INSTANCE.GetAncestor(handle, FullUser32.GA_ROOT))
 
-		
+	def click(x:Int, y:Int) {
+		val robot = new Robot()
+		root.rootRaised {
+			val rect = new WinDef.RECT()
+			if (!User32.GetWindowRect(handle, rect))
+				throw new WindowRectException(Window.FormatLastError)
+			robot.mouseMove(rect.left + x, rect.top+y)
+			robot.mousePress(InputEvent.BUTTON1_MASK);
+			robot.mouseRelease(InputEvent.BUTTON1_MASK);
+			
+		}
+	}
 	def captureImage = {
 		val robot = new Robot()
 		var rv:BufferedImage = null

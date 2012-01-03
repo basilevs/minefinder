@@ -8,7 +8,7 @@ import minefinder.{Number, SampleStorage => Subject}
 import minefinder.ImageTools._
 
 class SampleStorageTest extends FunSuite {
-	
+	import minefinder.Sample
 	val fields = Field.all
 	test("different images are non-equal") {
 		assert(compare(fields(0).image, fields(1).image)!=0)
@@ -29,7 +29,7 @@ class SampleStorageTest extends FunSuite {
 		val storage1 = new Subject("testStorage")
 		try {
 			assert(storage1.size == 0)
-			storage1 += ((Number(2), fields(0).image))
+			storage1 += new Sample(Number(2), fields(0).image)
 			assert(storage1.size == 1)
 			storage1.save
 		} finally {

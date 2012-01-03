@@ -14,7 +14,8 @@ class AxisGuess(val start:Int, val step:Int) {
 		val mod = abs((x - start) % step)
 		min(mod, mod - step)
 	}
-	def findBound(hasHit: (Int) => Boolean, fuzzy:Float): Axis = {
+	def findBound(hasHit: (Int) => Boolean): Axis = {
+		val fuzzy = step/10
 		assert(fuzzy > 0)
 		var position = start % step
 		var newstart = 0
@@ -31,7 +32,6 @@ class AxisGuess(val start:Int, val step:Int) {
 			if (!hit && found ) {
 				val stop = position - step
 				assert((stop - start) % step ==0)
-				assert(stop > newstart)
 				return new Axis(newstart, step, (stop - newstart) / step)
 			}
 			position += step
@@ -77,6 +77,11 @@ class Grid(x:Axis, y:Axis) {
 		gc.drawImage(img, null, -cellLeft, -cellTop)
 		gc.dispose()
 		rv
+	}
+	def getMiddle(x:Int, y:Int) = {
+		val cellTop =(0.5*height + top + height*y).toInt
+		val cellLeft = (0.5 * width + left + width*x ).toInt
+		(cellLeft, cellTop)
 	}
 }
 
@@ -135,10 +140,8 @@ object GridSearch {
 	//strong - no noise
 	def detectGrid(img:BufferedImage, weak:(Int) => Boolean, strong:(Int) => Boolean): Grid = {
 		val lines = detectLines(img, strong)
-		val allPeaks = lines._1 ++ lines._2
-		val fuzzy = allPeaks.map(_.width).sum / allPeaks.size
 		val guess = (findPeriod(lines._1).get, findPeriod(lines._2).get)
-		val axises = findBounds(img, guess._1, guess._2, fuzzy, weak)
+		val axises = findBounds(img, guess._1, guess._2, weak)
 		new Grid(axises._1, axises._2)
 	}
 	def detectGrid(img:BufferedImage):Grid = {
@@ -154,14 +157,28 @@ object GridSearch {
 	}
 	class Threshold(data:Seq[Int], threshold:Int) extends Function1[Int, Boolean] {
 		override def apply(x:Int) = {
-			assert(x>=0)
-			if (x > data.size) false
+			if (x < 0) false
+			else if (x > data.size) false
 			else data(x) > threshold
 		}
 	}
-	def findBounds(img:BufferedImage, x:AxisGuess, y:AxisGuess, fuzzy:Int, rgbFilter:(Int) => Boolean) = {
+	def scanGuess(guess:AxisGuess, hasHit: (Int) => Boolean):Axis = {
+//		println("Scan")
+		(
+			for (
+				start <- (guess.start - 1) to (guess.start + 1);
+				period <- guess.step to (guess.step + 1) 
+			) yield {
+				val t = new AxisGuess(start, period)
+				val rv = t.findBound(hasHit)
+//				println("Start: %d, step %d, count %d".format(rv.start, rv.step, rv.count))
+				rv
+			}
+		).maxBy(_.count)
+	}
+	def findBounds(img:BufferedImage, x:AxisGuess, y:AxisGuess, rgbFilter:(Int) => Boolean) = {
 		val (byX, byY) = countPixels(img, rgbFilter)
-		(x.findBound(new Threshold(byX, img.getHeight/2), fuzzy), y.findBound(new Threshold(byY, img.getWidth/2), fuzzy))
+		(scanGuess(x, new Threshold(byX, img.getHeight/2)), scanGuess(y, new Threshold(byY, img.getWidth/2)))
 	}
 	def findPeriod(peaks:Seq[Peak]): Option[AxisGuess] = {
 		var bestderivation = 1000

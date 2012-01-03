@@ -68,13 +68,17 @@ object ImageTools {
 		rv
 	}
 	def clip(img:BufferedImage, margin:Int) = {
-		val width = img.getWidth - 2 * margin
-		val height = img.getHeight - 2 * margin
-		val rv = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
-		val gc = rv.createGraphics
-		gc.drawImage(img, -2, -2, width, height, null)
-		gc.dispose
-		rv		
+		if (margin <= 0) {
+			img
+		} else {
+			val width = img.getWidth - 2 * margin
+			val height = img.getHeight - 2 * margin
+			val rv = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
+			val gc = rv.createGraphics
+			gc.drawImage(img, -2, -2, width, height, null)
+			gc.dispose
+			rv
+		}
 	}
 	def compare(img1:BufferedImage, img2:BufferedImage):Int = {
 		val h = img1.getHeight - img2.getHeight

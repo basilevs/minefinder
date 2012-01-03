@@ -9,11 +9,23 @@ class UserFail extends Error
 
 class RecognitionError(val problem:BufferedImage, reason:Error = null) extends Error(reason)
 class ContradictoryRecognition(val matches:Seq[Sample], problem:BufferedImage, reason:Error = null) extends RecognitionError(problem, reason)
+class TrainConflict(matches:Seq[Sample], problem:Sample, reason:Error = null) extends ContradictoryRecognition(matches, problem.img, reason)
+class ListDialog extends Dialog {
+	val p = new BoxPanel(Orientation.Vertical)
+	contents = p
+	val items = p.contents
+	modal = false
+	def add(c:Component) = {
+		items += c
+		if (items.size < 10)
+			p.revalidate
+	}
+}
 
 object Error {
 	class SampleView(s:Sample) extends Label {
 		icon = new ImageIcon(s.img)
-		text = s.mark.toString
+		text = "%10s".format(s.mark.toString)
 	}
 	def possibleMatches(matches:Iterable[(Sample, Float)], problem: BufferedImage) = {
 		new BoxPanel(Orientation.Horizontal) {
@@ -21,7 +33,7 @@ object Error {
 			contents ++= matches.map(x => {
 				val (s,d) = x
 				val q = new SampleView(s)
-				q.text += ", delta: "+ d
+				q.text += ", delta: %.2f".format(d)
 				q
 			})
 		}
@@ -32,6 +44,7 @@ object Error {
 			contents ++= matches.map(new SampleView(_))
 		}
 	}
+	
 	def recognitionComponent(problem:BufferedImage) = {
 		new Label() {icon = new ImageIcon(problem); text = "Unrecognized"}
 	}
@@ -45,7 +58,7 @@ object Error {
 			open
 		}
 	}
-	def show(er:RecognitionError, wait:Boolean=false) {
+	def showRecognitionError(er:RecognitionError, wait:Boolean=false) {
 			val c = er match {
 				case e:ContradictoryRecognition => contradictoriesComponent(e.matches, e.problem)
 				case e:RecognitionError => recognitionComponent(e.problem)
@@ -53,6 +66,6 @@ object Error {
 			showComponent(c, wait)
 	}
 	def handle(e:RecognitionError) {
-		show(e, true)
+		showRecognitionError(e, true)
 	}
 }

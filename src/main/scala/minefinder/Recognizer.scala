@@ -15,6 +15,8 @@ trait Recognizer {
 }
 
 object Recognizer {
+	implicit def toSample(pair:(Mark, BufferedImage)) = new Sample(pair._1, pair._2)
+
 	import ImageTools._
 	import Error._
 	trait Difference  extends Recognizer {
@@ -22,6 +24,7 @@ object Recognizer {
 		val exactMatchThreshold:Float
 		val probableMatchThreshold:Float
 		val patterns = collection.mutable.Buffer[Pair]()
+		val list = new ListDialog()
 		def recognizeToPair(img:BufferedImage):Option[Pair] = {
 			var found = Option.empty[Pair]
 			var foundDiff = probableMatchThreshold + 1
@@ -35,8 +38,10 @@ object Recognizer {
 					if (found.getOrElse(pair).mark != mark) {
 //						Thread.dumpStack
 //						println("Contradictory recognition: " + found.get._1 +", "+mark)
+						list.title = this.getClass.getName + " matches with threshold: " +probableMatchThreshold
+//						list.open
 						val toShow = possibleMatches(Seq((found.get, foundDiff), (pair, diff)), img)
-						showComponent(toShow, false,  this.getClass.getName + " matches with threshold: " +probableMatchThreshold)
+						list.add(toShow)
 					}
 					if (foundDiff > diff) {
 						found = Option(pair)					
@@ -92,7 +97,13 @@ object Recognizer {
 	trait Cascade  extends Recognizer {
 		val next:Iterable[Recognizer]
 		def recognize(img:BufferedImage): Option[Mark] = {
-			next.flatMap(_.recognize(img)).headOption
+			for (n <- next) {
+				val rv = n.recognize(img)
+				if (!rv.isEmpty)
+					return rv
+			}
+			Option.empty[Mark]
+//				next.flatMap(_.recognize(img)).headOption
 /*
 			val results = next.flatMap(_.recognize(img)).toSet
 			if (results.size == 1) {
@@ -127,11 +138,7 @@ object Recognizer {
 	
 	trait Clip extends Transforming {
 		def transform(img:BufferedImage) = {
-			if (img.getHeight > 10 && img.getWidth > 10) {
-				clip(img, 2)
-			} else {
-				null
-			}
+			clip(img, min(img.getHeight, img.getWidth)/10)
 		}
 	}
 	
@@ -210,18 +217,18 @@ object Recognizer {
 	class AutomaticRecognizer extends Cascade {
 		def colorRecognitions = {
 			println("colors")
-			Seq(new GrayDifference(9), new ColorDifference(60))
+			Seq(new GrayDifference(9), new ColorDifference(55))
 		}
 		val downScaled = new Scaling {
 			val height = 9
 			val width = 9
 			val next = colorRecognitions
 		}
-		val clip = new Clip() {
-			val next = colorRecognitions
-		}
 		val brightnorm = new BrightnessNormalizer() {
-			val next = colorRecognitions ++ Seq(downScaled, clip) 
+			val next = Seq(new GrayDifference(9)) 
+		}
+		val clip = new Clip() {
+			val next = colorRecognitions :+ brightnorm 
 		}
 		val next = Seq(downScaled, clip)
 	}
@@ -254,7 +261,7 @@ object Recognizer {
 	class PersistentLearner(val storage:SampleStorage) extends Recognizer {
 		def recognize(img:BufferedImage) : Option[Mark] = Option.empty[Mark]
 		def train(mark:Mark, img:BufferedImage) {
-			storage += ((mark, img))
+			storage += Sample(mark, img)
 		}
 	}
 	/** Uses sample collection and user input to train algorithms.
@@ -262,11 +269,12 @@ object Recognizer {
 	class Training extends Verifying {
 		val persistent = new PersistentLearner(SampleStorage.instance)
 		val automatic = new AutomaticRecognizer()
-		val next = collection.mutable.Set[Recognizer](automatic)
+		SampleStorage.instance.listeners += {sample => automatic.train(sample.mark, sample.img)}
+		val next = collection.mutable.Buffer[Recognizer](automatic)
 		for (pair <- persistent.storage ) {
 			train(pair._1, pair._2)
 		}
-		next+=persistent
+		next += persistent
 		override def recognize(img:BufferedImage) : Option[Mark] = {
 			val rv = super.recognize(img)
 			rv.foreach(persistent.train(_, img))
