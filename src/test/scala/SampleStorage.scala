@@ -7,6 +7,7 @@ import java.nio.file.Paths
 import minefinder.{Number, SampleStorage => Subject}
 import minefinder.ImageTools._
 
+
 class SampleStorageTest extends FunSuite {
 	import minefinder.Sample
 	val fields = Field.all

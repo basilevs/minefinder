@@ -137,7 +137,7 @@ class RecognizerTest extends FunSuite {
 	}
 	test("ask user about a few samples") {
 		val t = new Training()
-		println("Loaded "+ t.persistent.storage.size+" teaching samples")
+		println("Loaded "+ SampleStorage.instance.size+" teaching samples")
 		val cells = Field.all.flatMap(f => imageToCells(f.image))
 		val iter = cells.iterator
 		var count = 0
@@ -149,7 +149,7 @@ class RecognizerTest extends FunSuite {
 				println("Count: "+count)
 		}
 		println("Recognition rate: " + (t.correct/t.total)+ ", wrong rate: " + t.wrong/t.total)
-		t.persistent.storage.save
-		println("Saved "+ t.persistent.storage.size+" teaching samples")
+		SampleStorage.instance.save
+		println("Saved "+ SampleStorage.instance.size+" teaching samples")
 	}
 }

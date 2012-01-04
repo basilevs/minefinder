@@ -17,17 +17,17 @@ class SampleStorage(name:String) extends collection.mutable.Set[Sample] {
 	def filename = name+".ser"
 	import SampleStorage._
 	load
-	def find(s:Sample):Option[Sample] = {
-		self.find(pair=>ImageTools.differencePerPixel(s.img, pair.img) < 2)
+	def find(img:BufferedImage):Option[Sample] = {
+		self.find(pair=>ImageTools.differencePerPixel(img, pair.img) < 2)
 	}
 	def contains(s:Sample):Boolean = {
-		val res = find(s)
+		val res = find(s.img)
 		!res.isEmpty && res.get.mark == s.mark
 	}
 	def iterator = self.iterator
 	def += (pair: Sample): SampleStorage.this.type = {
 		assert(pair._2 != null)
-		val res = find(pair)
+		val res = find(pair.img)
 		if (!res.isEmpty) {
 			if(res.get.mark != pair.mark)
 				throw new TrainConflict(Seq(res.get), pair)
@@ -38,7 +38,7 @@ class SampleStorage(name:String) extends collection.mutable.Set[Sample] {
 	}
 	def -= (pair: Sample):SampleStorage.this.type = {
 		assert(pair.img != null)
-		find(pair).foreach(self.-=)
+		find(pair.img).foreach(self.-=)
 		this
 	}
 	def load {

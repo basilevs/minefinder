@@ -52,9 +52,7 @@ object ImageTools {
 			false
 		} else {
 			val cm = img.getColorModel.asInstanceOf[DirectColorModel]
-			val r = img.getData
-			cm.getRedMask() == 0xff0000 && cm.getGreenMask() == 0xff00 && cm.getBlueMask() == 0xff &&
-			r.getParent == null && r.getMinX == 0 && r.getMinY == 0
+			cm.getRedMask() == 0xff0000 && cm.getGreenMask() == 0xff00 && cm.getBlueMask() == 0xff
 		}
 		
 	}
@@ -66,7 +64,7 @@ object ImageTools {
 			val buffers = imgs.map(_.getData.getDataBuffer.asInstanceOf[DataBufferInt].getData)
 			val length = buffers.map(_.length).min
 			var sum = 0.D
-			for (idx <-0 until length) {
+			for (idx <- 0 until length) {
 				sum+=abs(diff(buffers(0)(idx), buffers(1)(idx)))
 			}
 			Option((sum / length).toFloat)

@@ -154,17 +154,14 @@ object Recognizer {
 		}
 	}
 	
-	class AskUser extends Cascade {
+	class AskUser extends Recognizer {
 		var userQuestions = 0
-		val next = Seq(new ColorDifference(10), new GrayDifference(5))
-		override def recognize(img:BufferedImage): Option[Mark] = {
-			val auto = super.recognize(img) 
-			if (auto.isEmpty) {
-				ask(img)
-			} else {
-//				println("Recognized with previous user input")
-				auto
-			}
+		def recognize(img:BufferedImage): Option[Mark] = {
+			val auto = SampleStorage.instance.find(img)
+			auto.map(_.mark).orElse(ask(img))
+		}
+		def train(mark:Mark, img:BufferedImage) {
+		  
 		}
 		var selectedMark = Option.empty[Mark]
 		class UserDialog extends Dialog {
@@ -198,8 +195,8 @@ object Recognizer {
 			dialog.shownIcon.setImage(img)
 			dialog.p1.revalidate
 			dialog.open
-			if (selectedMark.isEmpty) 
-				throw new UserFail
+			if (!selectedMark.isEmpty)
+				SampleStorage.instance += new Sample(selectedMark.get, img) 
 			selectedMark
 		}
 	}
@@ -217,7 +214,7 @@ object Recognizer {
 	class AutomaticRecognizer extends Cascade {
 		def colorRecognitions = {
 			println("colors")
-			Seq(new GrayDifference(9), new ColorDifference(55))
+			Seq(new ColorDifference(55), new GrayDifference(9))
 		}
 		val downScaled = new Scaling {
 			val height = 9
@@ -230,7 +227,7 @@ object Recognizer {
 		val clip = new Clip() {
 			val next = colorRecognitions :+ brightnorm 
 		}
-		val next = Seq(downScaled, clip)
+		val next = Seq(clip, downScaled)
 	}
 	/** Compares recognition result with user input
 	 *  Prints fails on console.
@@ -267,18 +264,11 @@ object Recognizer {
 	/** Uses sample collection and user input to train algorithms.
 	 */
 	class Training extends Verifying {
-		val persistent = new PersistentLearner(SampleStorage.instance)
 		val automatic = new AutomaticRecognizer()
 		SampleStorage.instance.listeners += {sample => automatic.train(sample.mark, sample.img)}
 		val next = collection.mutable.Buffer[Recognizer](automatic)
-		for (pair <- persistent.storage ) {
+		for (pair <- SampleStorage.instance ) {
 			train(pair._1, pair._2)
-		}
-		next += persistent
-		override def recognize(img:BufferedImage) : Option[Mark] = {
-			val rv = super.recognize(img)
-			rv.foreach(persistent.train(_, img))
-			rv
 		}
 	}
 	

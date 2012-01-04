@@ -7,6 +7,8 @@ import scala.swing._
 import javax.swing.ImageIcon
 import java.awt.Toolkit
 import minefinder.Window
+import minefinder.FullUser32
+
 
 class WindowSuite extends FunSuite {
 	test("EnumWindows") {
@@ -16,7 +18,8 @@ class WindowSuite extends FunSuite {
 				val title = x.text
 				if (title.length > 5) {
 					works = true
-					false
+					println(title)
+					true
 				} else {
 					true
 				}
@@ -77,5 +80,13 @@ class WindowSuite extends FunSuite {
 			println("Created "+path)
 			ImageIO.write(img, "PNG", path.toFile)
 		}
+	}
+	test("click") {
+		val mine = Window.GetMineSweeper.get
+		def clickChild(w:Window) = {
+			w.lclick(98, 50)
+			false
+		}
+		mine.EnumChilds(clickChild)
 	}
 }

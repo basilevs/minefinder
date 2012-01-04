@@ -20,7 +20,7 @@ class Field(val columns:Int, marks:Seq[Option[Mark]]) extends Iterable[Cell] {
 		def neighbours = (for (
 			xn <- math.max(x-1, 0) to math.min(x+1, columns-1);
 			yn <- math.max(0, y-1) to math.min(y+1, rows-1);
-			if (xn != x && yn != y)
+			if (!(xn == x && yn == y))
 		) yield {val pos = yn*columns + xn; cells(pos) } ).toSeq
 		override def toString = "x:%d, y:%d, mark:%s".format(x, y, mark.getOrElse("None").toString)
 	}
@@ -28,31 +28,38 @@ class Field(val columns:Int, marks:Seq[Option[Mark]]) extends Iterable[Cell] {
 }
 
 object Field {
-	def cellsToString(cells:Iterable[Cell]) {
+	def cellsToString(cells:Iterable[Cell]) = {
 		val sb = new StringBuffer()
 		for (c <- cells) {
 			sb.append(c.toString+" ")
 		}
 		sb.toString
 	}
-	def getCellsWithMineFlag(cells:Iterable[Cell]) = {
+	//Second element of tuple is true is mine is present in the cell
+	def getCellsWithMineFlag(cells:Iterable[Cell]): Iterable[(Cell, Boolean)] = {
 		cells.flatMap(c => c.mark match {
 			case Some(Number(n)) => { //Mine or unknown count is exactly n
 				val ns = c.neighbours
-				
-				val rv1 = if(n==(ns.count(_.mayHaveMine))) {
-					println("Found all empties for cell "+cellsToString(Seq(c)))
-					ns.filter(_.mark == Closed).map((_, true))
+				val mines = ns.filter(_.mark == Some(Mine))
+				val closed = ns.filter(_.mark == Some(Closed))
+				//If there are exactly x yet undiscovered neighboring mines and x closed neighbors, they are the same   
+				val rv1 = if ( (n - mines.size) == closed.size) {
+					val rv = closed.map((_, true))
+					if (rv.size > 0)
+						println("Found all empties for cell "+cellsToString(Seq(c))+": "+rv)
+					rv
 				} else {
 					Seq()
 				}
-				val rv2 = if (n==(ns.count(_.mark == Mine))) {
-					println("Found all mines for cell "+cellsToString(Seq(c)))
-					ns.filter(_.mark != Mine).map((_, false))
+				val rv2 = if (n==mines.size) {
+					val rv = ns.filter(_.mark == Some(Closed)).map((_, false))
+					if (rv.size > 0)
+						println("Found all mines for cell "+cellsToString(Seq(c))+": "+rv)
+					rv
 				} else {
 					Seq()
 				}
-				rv2
+				rv1 ++ rv2
 			}
 			case _ => Seq()
 		})

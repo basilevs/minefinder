@@ -3,18 +3,9 @@ import Recognizer._
 import java.awt.image.{BufferedImage}
 
 object Controller extends App {
-	var doWork = true 
+	var doWork = true
 	val productionRecognizer = new Cascade {
-		val user = new AskUser() {
-			override def recognize(img:BufferedImage) = {
-				val rv = super.recognize(img)
-				if (!rv.isEmpty) {
-					SampleStorage.instance += new Sample(rv.get, img)
-					println("Added sample:"+rv)
-				}
-				rv
-			}
-		}
+		val user = new AskUser()
 		val next = Seq(new AutomaticRecognizer, user)
 		for (sample <- SampleStorage.instance) {
 			train(sample.mark, sample.img)
@@ -28,6 +19,7 @@ object Controller extends App {
 	def fieldWindowHook(window:Window) {
 		try {
 			val img = window.captureImage
+			if (img == null) return
 			val grid = GridSearch.detectGrid(img)
 			val marks = 
 			for (
