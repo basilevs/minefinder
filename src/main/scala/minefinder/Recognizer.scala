@@ -25,27 +25,25 @@ object Recognizer {
 		val probableMatchThreshold:Float
 		val patterns = collection.mutable.Buffer[Pair]()
 		val list = new ListDialog()
-		def recognizeToPair(img:BufferedImage):Option[Pair] = {
-			var found = Option.empty[Pair]
-			var foundDiff = probableMatchThreshold + 1
-			for ( pair <- patterns) {
+		def recognizeToPair(img:BufferedImage):Option[(Pair, Float)] = {
+			var found = Option.empty[(Pair, Float)]
+			for ( pair <- patterns ) {
 				val mark = pair._1
 				val pattern = pair._2
 				val diff = abs(difference(pattern, img))
 				if (diff < exactMatchThreshold)
-					return Option(pair)
+					return Option((pair, diff))
 				if (diff < probableMatchThreshold) {
-					if (found.getOrElse(pair).mark != mark) {
+					if (!found.isEmpty && found.get._1.mark != mark) {
 //						Thread.dumpStack
 //						println("Contradictory recognition: " + found.get._1 +", "+mark)
 						list.title = this.getClass.getName + " matches with threshold: " +probableMatchThreshold
 //						list.open
-						val toShow = possibleMatches(Seq((found.get, foundDiff), (pair, diff)), img)
+						val toShow = possibleMatches(Seq((found.get._1, found.get._2), (pair, diff)), img)
 						list.add(toShow)
 					}
-					if (foundDiff > diff) {
-						found = Option(pair)					
-						foundDiff = diff 
+					if (found.isEmpty || found.get._2 > diff) {
+						found = Option((pair, diff))					
 					}
 				}
 			}
@@ -56,9 +54,9 @@ object Recognizer {
 			if (res.isEmpty) {
 				patterns += Sample(mark, img)
 			} else {
-				val contr = res.get._1 != mark
-				if (difference(res.get._2, img) > exactMatchThreshold) {
-					patterns += Sample (mark, img)
+				val contr = res.get._1._1 != mark
+				if (res.get._2 > exactMatchThreshold) {
+					new Sample (mark, img) +=: patterns 
 				} else if (contr) {
 					println("Contradictory training")				
 				}
@@ -69,7 +67,15 @@ object Recognizer {
 				println("Warning: difference recognition without patterns")
 				Option.empty[Mark]
 			} else {
-				recognizeToPair(img).map(p =>p._1)
+				val pair = recognizeToPair(img)
+				for (p <- pair) {
+					if (p._2 < exactMatchThreshold) {
+						patterns -= p._1
+						p._1 +=: patterns
+					}
+					
+				}
+				pair.map(p =>p._1._1)
 			}
 		}
 		def difference(img1:BufferedImage, img2:BufferedImage):Float

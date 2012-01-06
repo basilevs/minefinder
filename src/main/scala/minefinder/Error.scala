@@ -5,6 +5,7 @@ import javax.swing.ImageIcon
 
 
 class Error(reason:Error = null) extends RuntimeException(reason)
+
 class UserFail extends Error
 
 class RecognitionError(val problem:BufferedImage, reason:Error = null) extends Error(reason)

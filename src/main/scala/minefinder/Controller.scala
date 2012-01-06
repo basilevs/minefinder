@@ -4,6 +4,7 @@ import java.awt.image.{BufferedImage}
 
 object Controller extends App {
 	var doWork = true
+	var windowsArePresent = false
 	val productionRecognizer = new Cascade {
 		val user = new AskUser()
 		val next = Seq(new AutomaticRecognizer, user)
@@ -16,6 +17,7 @@ object Controller extends App {
 		})
 		
 	}
+	println("Trained on "+SampleStorage.instance.size+" teaching samples")
 	def fieldWindowHook(window:Window) {
 		try {
 			val img = window.captureImage
@@ -32,6 +34,7 @@ object Controller extends App {
 			SampleStorage.instance.save
 			val f = new Field(grid.columns, marks.toSeq)
 			val cells = Field.getCellsWithMineFlag(f)
+			println("Clicking: "+ cells)
 			for (c <- cells) {
 				val (x, y) = grid.getMiddle(c._1.x, c._1.y)
 				if (c._2) {
@@ -40,7 +43,9 @@ object Controller extends App {
 					window.lclick(x, y)
 				}
 			}
+			windowsArePresent = true
 		} catch { //Exceptions are not propagated from within JNA hook
+			case mc:Window.MouseClickException => {}
 			case a:Exception => {
 				doWork = false
 				println(a)
@@ -57,7 +62,13 @@ object Controller extends App {
 		}
 		doWork
 	}
-	while (doWork)
+	while (doWork) {
+		windowsArePresent = false
 		Window.EnumWindows(windowHook)
+		if (!windowsArePresent) {
+			Thread.sleep(1000)
+		}
+	}
 	println("Job complete")
+	System.exit(0)
 }

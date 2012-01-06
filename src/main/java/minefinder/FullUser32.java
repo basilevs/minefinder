@@ -2,6 +2,7 @@ package minefinder;
 
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
+import com.sun.jna.Structure;
 import com.sun.jna.win32.W32APIOptions;
 import com.sun.jna.platform.win32.WinDef.HWND;
 import com.sun.jna.platform.win32.WinDef.WPARAM;
@@ -9,6 +10,7 @@ import com.sun.jna.platform.win32.WinDef.LPARAM;
 import com.sun.jna.platform.win32.WinDef.DWORD;
 import com.sun.jna.platform.win32.WinDef.LONG;
 import com.sun.jna.platform.win32.WinUser.INPUT;
+import com.sun.jna.platform.win32.WinUser.POINT;
 import com.sun.jna.platform.win32.WinUser.MOUSEINPUT;
 
 public interface FullUser32 extends com.sun.jna.platform.win32.User32 {
@@ -42,8 +44,9 @@ public interface FullUser32 extends com.sun.jna.platform.win32.User32 {
 	boolean BringWindowToTop(HWND hWnd);
 	boolean IsIconic(HWND hWnd);
 	HWND GetAncestor(HWND hWnd, int gaFlags);
+	HWND WindowFromPoint(PointByValue point);
 	class MouseInput extends INPUT {
-		public MouseInput (DWORD dwFlags, float x, float y) {
+		public MouseInput (DWORD dwFlags, double x, double y) {
 			type = new DWORD(Long.valueOf(INPUT_MOUSE));
 			MOUSEINPUT i = new MOUSEINPUT();
 			i.mouseData = new DWORD(0);
@@ -52,6 +55,11 @@ public interface FullUser32 extends com.sun.jna.platform.win32.User32 {
 			i.dy = new LONG((long)(65535*y));
 			input.mi = i;
 			input.setType("mi");
+		}
+	}
+	static class PointByValue extends POINT implements Structure.ByValue {
+		public PointByValue(int x, int y) {
+			super(x, y);
 		}
 	}
 	class Convert {

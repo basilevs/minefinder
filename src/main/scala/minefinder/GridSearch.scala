@@ -8,11 +8,19 @@ import java.awt.Toolkit
 import java.awt.geom.{Line2D}
 import java.awt.{Graphics2D}
 
-class AxisGuess(val start:Int, val step:Int) {
+class AxisGuess(val start:Float, val step:Float) {
 	assert(step>0)
 	def distance(x : Int):Int = {
 		val mod = abs((x - start) % step)
 		min(mod, mod - step)
+	}
+	def calcIntensity(intensity:Array[Float]) = {
+		var sum = 0.
+		for (xIdx <- 0 until (intensity.length / step).toInt) {
+			val x = start + xIdx*step
+			sum += intensity(x.toInt)
+		}
+		sum
 	}
 	def findBound(hasHit: (Int) => Boolean): Axis = {
 		val fuzzy = step/10
@@ -38,6 +46,25 @@ class AxisGuess(val start:Int, val step:Int) {
 		}
 		assert(false)
 		null
+	}
+}
+
+object AxisGuess {
+	def emitHypothesis(minStart:Float, maxStart:Float, minStep:Float, maxStep:Float) =  {
+		val startStep = 0.2
+		val stepStep = 0.5
+		for (
+			startIdx <- 0 until ((maxStart-minStart)/startStep).toInt;
+			stepIdx  <- 0 until ((maxStep - minStep)/stepStep).toInt
+		) yield {
+			val start = minStart + startIdx * startStep
+			val step = minStep + stepIdx * stepStep
+			new AxisGuess(start.toFloat, step.toFloat)
+		}
+	}
+	def guessAxisPeriod(intensity:Array[Float]):AxisGuess = {
+		val hypotesis:Iterable[AxisGuess] = emitHypothesis(9, intensity.length/10, 9, intensity.length/10)
+		hypotesis.map(h => (h, h.calcIntensity(intensity))).maxBy(_._2)._1
 	}
 }
 
@@ -167,7 +194,7 @@ object GridSearch {
 		(
 			for (
 				start <- (guess.start - 1) to (guess.start + 1);
-				period <- guess.step to (guess.step + 1) 
+				period <- guess.step to (guess.step) 
 			) yield {
 				val t = new AxisGuess(start, period)
 				val rv = t.findBound(hasHit)

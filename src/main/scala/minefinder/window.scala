@@ -4,6 +4,7 @@ import com.sun.jna.platform.win32.User32.{INSTANCE => User32}
 import com.sun.jna.platform.win32.Kernel32.{INSTANCE => Kernel32}
 import com.sun.jna.platform.win32.{WinBase, WinDef, WinUser}
 import com.sun.jna.platform.win32.GDI32
+import com.sun.jna.platform.win32.WinGDI._
 import com.sun.jna.platform.win32.WinUser._
 import com.sun.jna.platform.win32.WinDef._
 import com.sun.jna.ptr.IntByReference
@@ -16,7 +17,122 @@ import java.awt.event.InputEvent
 import java.awt.Toolkit
 import java.awt.Dimension
 
+
+trait OnceCloseable extends  AutoCloseable {
+	def closeOnce
+	private var closed = false
+	final def close {
+		if (!closed) {
+			closeOnce
+			closed = true
+		}
+	}
+	override def finalize {
+		close
+	}
+}
+
+object OnceCloseable {
+	def tryWith[A<%AutoCloseable, R](ac: A)(f: A => R):R =
+	{
+		try {
+			f(ac)
+		} finally {
+			ac.close
+		}
+	}
+	def tryWith[A1<%AutoCloseable, A2<%AutoCloseable, R](ac1: A1, ac2:A2)(f: (A1,A2) => R):R = {
+		tryWith(ac1) { r1 => tryWith(ac2) {r2 => f(r1, r2)}}
+	}
+}
+
+import OnceCloseable._
+
+class WindowsException(code:Int) extends  RuntimeException {
+	def this() = this(Kernel32.GetLastError)
+	override def getLocalizedMessage() = {
+		format
+	}
+	def format = {
+		val buffer = java.nio.CharBuffer.allocate(500)
+		val length = Kernel32.FormatMessage(WinBase.FORMAT_MESSAGE_FROM_SYSTEM, Pointer.NULL, code, 0, buffer, buffer.length, Pointer.NULL) 
+		val message = new String(buffer.array, 0, length)
+		""+code+": "+message
+	}
+}
+
+class DeviceContext(private val handle:HDC, private val hwnd:HWND) extends OnceCloseable {
+	def this(hwnd:HWND) = this(User32.GetDC(hwnd), hwnd)
+	def closeOnce {
+		User32.ReleaseDC(hwnd, handle)
+	}
+	def getSystemRgn = {
+		val rv = new Region()
+		rv.getSystemRgn(handle)
+		rv
+	}
+}
+
+class Region(private val handle:HRGN) extends OnceCloseable {
+	def this() = this(GDI32.INSTANCE.CreateRectRgn(0, 0, 0, 0))
+	private var closed = false
+	def closeOnce {
+		GDI32.INSTANCE.DeleteObject(handle)
+	}
+	def getSystemRgn(hdc:HDC) = {
+		FullGDI32.INSTANCE.GetRandomRgn(hdc, handle, 4)
+	}
+	def diff(that:Region) = {
+		val rv = new Region()
+		val code = GDI32.INSTANCE.CombineRgn(rv.handle, handle, that.handle, RGN_DIFF) 
+		if (code == ERROR) {
+			throw new Region.RegionException()
+		}
+		if (code == NULLREGION) {
+			null
+		} else {
+			rv
+		}
+	}
+	override def equals(that:Any) = that match {
+		case rgn:Region => {
+			val code = FullGDI32.INSTANCE.EqualRgn(handle, rgn.handle)
+			if (!code) {
+				false
+			} else {
+				true
+			}
+		}
+		case _ => false
+	}
+	def getBox = {
+		val rv = new RECT()
+		if (FullGDI32.INSTANCE.GetRgnBox(handle, rv) == 0) {
+			throw new Region.RegionException();
+		}
+		rv
+	}
+	
+}
+
+
+object Region {
+	class RegionException(code:Int) extends WindowsException(code) {
+		def this() = this(Kernel32.GetLastError)
+	}
+	def createRectRegion(left:Int, top:Int, right:Int, bottom:Int) = {
+		new Region(GDI32.INSTANCE.CreateRectRgn(left, top, right, bottom))
+	}
+}
+
+
 object Window {
+	class WindowCaptureException(message:String) extends RuntimeException(message)
+	class WindowRaiseException(message:String) extends RuntimeException(message)
+	class WindowRectException(message:String) extends RuntimeException(message)
+	class MouseClickException(message:String) extends RuntimeException(message) {
+		def this() = this(Window.FormatLastError)
+	}
 	def EnumWindows(stopcondition:(Window) => Boolean) = {
 		User32.EnumWindows(
 			new WNDENUMPROC{
@@ -55,10 +171,43 @@ object Window {
 	}
 }
 
-class Window(handle:HWND) {
+
+
+class Window(private val handle:HWND) {
 //	FullUser32.WM_RBUTTONDOWN // Forcing class initialization
 	import Window._
 	assert(handle!=Pointer.NULL)
+	def createSystemRegion:Region = {
+		tryWith(new DeviceContext(handle)) { hdc =>
+			{
+				val rv = hdc.getSystemRgn
+				rv
+			}
+		}
+		
+	}
+	def hasPoint(x:Int, y:Int) = {
+		import FullUser32.PointByValue
+		val that = FullUser32.INSTANCE.WindowFromPoint(new PointByValue(x, y))
+		if (that == null) {
+//			println("Point %d:%d doesn't belong to any window".format(x,y))
+			false
+		} else {
+			val w = new Window(that)
+//			println("Point %d:%d belongs to %s(%s)".format(x,y, w.text, w.root.text))
+			that == handle
+		}
+	}
+	def isCompletelyVisible = {
+		val rect = getRECT
+		val margin = 2
+		hasPoint(rect.left+margin, rect.top+margin) &&
+		hasPoint(rect.left+margin, rect.bottom-margin) &&
+		hasPoint(rect.right-margin, rect.top+margin) &&
+		hasPoint(rect.right-margin, rect.bottom-margin) &&
+		hasPoint((rect.right+rect.left)/2, (rect.bottom+rect.top)/2) &&
+		hasPoint(rect.left+20, rect.bottom-20)
+	}
 	def text = {
 		var length = User32.GetWindowTextLength(handle)
 		val buffer = new Array[Char](length+1)
@@ -86,25 +235,21 @@ class Window(handle:HWND) {
 //		println("Window title length: "+length)
 		new String(buffer, 0, length)
 	}
-	class WindowCaptureException(message:String) extends RuntimeException(message)
-	class WindowRaiseException(message:String) extends RuntimeException(message)
-	class WindowRectException(message:String) extends RuntimeException(message)
-	class MouseClickException(message:String) extends RuntimeException(message) {
-		def this() = this(Window.FormatLastError)
-	}
+	
 	private def rootRaised(execute: => Unit) = {
 		import FullUser32._
 		if (INSTANCE.IsIconic(handle)) 
 			INSTANCE.ShowWindow(handle, SW_RESTORE);
 		val flags = SWP_ASYNCWINDOWPOS | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
 		if (INSTANCE.SetWindowPos(handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_ASYNCWINDOWPOS | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE)) {
-		  try {
-			execute
-		  } finally {
-			INSTANCE.SetWindowPos(handle, HWND_NOTOPMOST, 0, 0, 0, 0, flags);
-		  }
+			try {
+				execute
+			} finally {
+				INSTANCE.SetWindowPos(handle, HWND_NOTOPMOST, 0, 0, 0, 0, flags);
+			}
+			true
 		}
-		true
+		false
 	}
 	def raise:Boolean = {
 /*		if (!FullUser32.INSTANCE.BringWindowToTop(handle)) 
@@ -142,14 +287,19 @@ class Window(handle:HWND) {
 			robot.mouseRelease(flag);		
 		}
 	}
-	def rectangle: Rectangle = {
+	private def getRECT = {
 		val rect = new WinDef.RECT()
 		if (!User32.GetWindowRect(handle, rect))
 			throw new WindowRectException(Window.FormatLastError)
-		toRectangle(rect)
+		rect
+	}
+	def rectangle: Rectangle = {
+		toRectangle(getRECT)
 	}
 	def sendInputs(inputs:Iterable[INPUT]) {
+		User32.SetForegroundWindow(handle);
 		for (input <-inputs) {
+			Thread.sleep(10)
 			val arr = new Array[INPUT](1)
 			arr(0) = input
 			if (User32.SendInput(FullUser32.Convert.toDWORD(arr.size), arr, input.size).longValue != 1)
@@ -158,37 +308,30 @@ class Window(handle:HWND) {
 	}
 	private val leftFlags = Seq[DWORD](FullUser32.MOUSEEVENTF_MOVE, FullUser32.MOUSEEVENTF_LEFTDOWN, FullUser32.MOUSEEVENTF_LEFTUP)
 	private val rightFlags = Seq[DWORD](FullUser32.MOUSEEVENTF_MOVE, FullUser32.MOUSEEVENTF_RIGHTDOWN, FullUser32.MOUSEEVENTF_RIGHTUP)
+	private def createInputFabric(x:Int, y:Int) = {
+		val dim = Toolkit.getDefaultToolkit().getScreenSize();
+		val rect = getRECT
+		val X = rect.left + x
+		val Y = rect.top +y
+		if (!hasPoint(X,Y))
+			throw new MouseClickException("Can't click. Given point doesn't belong to this window.");
+		(x:DWORD) => new FullUser32.MouseInput(x, X.toDouble / dim.getWidth, Y.toDouble / dim.getHeight)
+	}
 	def lclick(x:Int, y:Int) {
-		root.rootRaised {
-			val dim = Toolkit.getDefaultToolkit().getScreenSize();
-			val rect = rectangle
-			def createInput(flags:DWORD) = {
-				new FullUser32.MouseInput(flags, (rect.x + x).toFloat / dim.getWidth.toFloat, (rect.y +y).toFloat / dim.getHeight.toFloat)
-			}
-			sendInputs(leftFlags.map(createInput))
-		}
+		sendInputs(leftFlags.map(createInputFabric(x, y)))
 	}
 	def rclick(x:Int, y:Int) {
-		root.rootRaised {
-			val dim = Toolkit.getDefaultToolkit().getScreenSize();
-			val rect = rectangle
-			def createInput(flags:DWORD) = {
-				new FullUser32.MouseInput(flags, (rect.x + x).toFloat / dim.getWidth.toFloat, (rect.y +y).toFloat / dim.getHeight.toFloat)
-			}
-			sendInputs(rightFlags.map(createInput))
-		}
+		sendInputs(rightFlags.map(createInputFabric(x, y)))
 	}
 	def captureImage = {
 		val robot = new Robot()
-		var rv:BufferedImage = null
 		import Window.toRectangle
-		root.rootRaised {
-			Thread.sleep(300)
-			val rect = new WinDef.RECT()
-			if (!User32.GetWindowRect(handle, rect))
-				throw new WindowRectException(Window.FormatLastError)
-			rv = robot.createScreenCapture(rect)
+		if (isCompletelyVisible) {
+			robot.createScreenCapture(rectangle)
+		} else {
+//			println("System region box:"+createSystemRegion.getBox)
+//			println("Rectangle:"+getRECT)
+			null
 		}
-		rv
 	}
 }

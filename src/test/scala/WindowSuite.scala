@@ -8,6 +8,8 @@ import javax.swing.ImageIcon
 import java.awt.Toolkit
 import minefinder.Window
 import minefinder.FullUser32
+import minefinder.OnceCloseable
+import minefinder.Region
 
 
 class WindowSuite extends FunSuite {
@@ -72,6 +74,26 @@ class WindowSuite extends FunSuite {
 			visible = true
 		}
 	}
+	import OnceCloseable._
+	test("regionEquality") {
+		def create1 = Region.createRectRegion(1, 1, 10, 10)
+		def create2 = Region.createRectRegion(1, 1, 30, 10)
+		tryWith(create1, create1) { (reg1, reg2) => {
+			assert(reg1.equals(reg2))
+		}}
+		tryWith(create1, create2) { (reg1, reg2) => {
+			assert(!reg1.equals(reg2))
+		}}
+	}
+	test("regionBox") {
+		tryWith(Region.createRectRegion(1, 1, 10, 10)) { reg => {
+			val box = reg.getBox
+			assert(box.left == 1)
+			assert(box.top == 1)
+			assert(box.right == 10)
+			assert(box.bottom == 10)
+		}}
+	}
 	test("capture") {
 		var img:BufferedImage = capture
 		assert(img != null)
@@ -81,7 +103,7 @@ class WindowSuite extends FunSuite {
 			ImageIO.write(img, "PNG", path.toFile)
 		}
 	}
-	test("click") {
+	ignore("click") {
 		val mine = Window.GetMineSweeper.get
 		def clickChild(w:Window) = {
 			w.lclick(98, 50)
