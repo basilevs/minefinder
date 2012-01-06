@@ -1,6 +1,6 @@
 package minefinder;
 
-import math.{min, abs}
+import math.{abs}
 
 import java.awt.Image
 import java.awt.image.{BufferedImage, ImageFilter, FilteredImageSource, RGBImageFilter}
@@ -10,23 +10,45 @@ import java.awt.{Graphics2D}
 
 class AxisGuess(val start:Float, val step:Float) {
 	assert(step>0)
-	def distance(x : Int):Int = {
+	def distance(x : Int):Double = {
 		val mod = abs((x - start) % step)
-		min(mod, mod - step)
+		math.min(mod.toDouble, (mod - step).toDouble)
 	}
-	def calcIntensity(intensity:Array[Float]) = {
+	def calcIntensity(intensity:Array[Double]) = {
 		var sum = 0.
-		for (xIdx <- 0 until (intensity.length / step).toInt) {
+		var count = 0
+		for (xIdx <- 0 until ((intensity.length-start) / step).toInt) {
 			val x = start + xIdx*step
 			sum += intensity(x.toInt)
+			count += 1
 		}
-		sum
+		sum/count
+	}
+	def findAxis(intensity:Array[Double], minIntensity:Double):Axis = {
+		var position = start % step
+		var found = false
+		var newstart = 0.
+		while (position < intensity.length) {
+			val hit = intensity(position.toInt) > minIntensity 
+			if (hit && !found) {
+				newstart = position
+				assert((newstart - start) % step ==0)
+				found = true
+			}
+			if (!hit && found ) {
+				val stop = position - step
+				assert((stop - start) % step ==0)
+				return new Axis(newstart.toFloat, step, ((stop - newstart) / step).toInt)
+			}
+			position += step
+		}
+		return new Axis(newstart.toFloat, step, ((position - step  - newstart) / step).toInt)
 	}
 	def findBound(hasHit: (Int) => Boolean): Axis = {
 		val fuzzy = step/10
 		assert(fuzzy > 0)
 		var position = start % step
-		var newstart = 0
+		var newstart = 0.
 		var found = false
 		while ((position / step) < 1000) {
 			val from = (position - fuzzy).toInt
@@ -40,7 +62,7 @@ class AxisGuess(val start:Float, val step:Float) {
 			if (!hit && found ) {
 				val stop = position - step
 				assert((stop - start) % step ==0)
-				return new Axis(newstart, step, (stop - newstart) / step)
+				return new Axis(newstart.toFloat, step, ((stop - newstart) / step).toInt)
 			}
 			position += step
 		}
@@ -62,13 +84,27 @@ object AxisGuess {
 			new AxisGuess(start.toFloat, step.toFloat)
 		}
 	}
-	def guessAxisPeriod(intensity:Array[Float]):AxisGuess = {
+	def makeIntensityArrays(img:BufferedImage, pixelIntensity:(Int)=>Double) = {
+		val byX = new Array[Double](img.getWidth)
+		val byY = new Array[Double](img.getHeight)
+		for (
+			y <- 0 until img.getHeight;
+			x <- 0 until img.getWidth
+		) {
+			val i = pixelIntensity(img.getRGB(x, y))
+			byX(x) += i / img.getHeight
+			byY(y) += i / img.getWidth
+		}
+		Seq(byX, byY)
+//		byX.map(x=>println(x.toString))
+	}
+	def guessAxisPeriod(intensity:Array[Double]):AxisGuess = {
 		val hypotesis:Iterable[AxisGuess] = emitHypothesis(9, intensity.length/10, 9, intensity.length/10)
 		hypotesis.map(h => (h, h.calcIntensity(intensity))).maxBy(_._2)._1
 	}
 }
 
-class Axis(val start:Int, val step:Int, val count:Int) {
+class Axis(val start:Float, val step:Float, val count:Int) {
 	def stop = start+(step*count)
 }
 
@@ -97,11 +133,11 @@ class Grid(x:Axis, y:Axis) {
 	def getCellImage(x:Int, y:Int, img:BufferedImage) = {
 		assert(x>=0)
 		assert(y>=0)
-		val rv = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
+		val rv = new BufferedImage(width.toInt, height.toInt, BufferedImage.TYPE_INT_RGB)
 		val gc = rv.createGraphics
 		val cellTop = top + height*y
 		val cellLeft = left + width*x 
-		gc.drawImage(img, null, -cellLeft, -cellTop)
+		gc.drawImage(img, null, -cellLeft.toInt, -cellTop.toInt)
 		gc.dispose()
 		rv
 	}
@@ -165,18 +201,17 @@ object GridSearch {
 	}
 	//weak - much noise, but make all lines visible
 	//strong - no noise
-	def detectGrid(img:BufferedImage, weak:(Int) => Boolean, strong:(Int) => Boolean): Grid = {
-		val lines = detectLines(img, strong)
-		val guess = (findPeriod(lines._1).get, findPeriod(lines._2).get)
-		val axises = findBounds(img, guess._1, guess._2, weak)
-		new Grid(axises._1, axises._2)
+	def detectGrid(img:BufferedImage, pixelIntensity:(Int) => Double, minLineIntensity:Double): Grid = {
+		val axisIntesities = AxisGuess.makeIntensityArrays(img, pixelIntensity)
+		val guesses = axisIntesities.map(AxisGuess.guessAxisPeriod)
+		val axises = guesses.zip(axisIntesities).map(pair => pair._1.findAxis(pair._2, minLineIntensity)) 
+		new Grid(axises(0), axises(1))
 	}
 	def detectGrid(img:BufferedImage):Grid = {
-			val intensity = calcMeanIntensity(img)
-			val strong = new RgbIntensityFilter((intensity*0.5).toInt)
-//			show("Strong: "+name, filter(img, strong))
-			val weak = new RgbIntensityFilter((intensity*0.9).toInt)
-			detectGrid(img, weak, strong)
+		def darkIntensity(rgb:Int):Double = {
+			sumRgb((0xFFFFFF-rgb) & 0xFFFFFF)
+		}
+		detectGrid(img, darkIntensity, 300)
 	}
 	def detectLines(img:BufferedImage, rgbFilter:(Int) => Boolean) = {
 		val (byX, byY) = countPixels(img, rgbFilter)
@@ -189,26 +224,8 @@ object GridSearch {
 			else data(x) > threshold
 		}
 	}
-	def scanGuess(guess:AxisGuess, hasHit: (Int) => Boolean):Axis = {
-//		println("Scan")
-		(
-			for (
-				start <- (guess.start - 1) to (guess.start + 1);
-				period <- guess.step to (guess.step) 
-			) yield {
-				val t = new AxisGuess(start, period)
-				val rv = t.findBound(hasHit)
-//				println("Start: %d, step %d, count %d".format(rv.start, rv.step, rv.count))
-				rv
-			}
-		).maxBy(_.count)
-	}
-	def findBounds(img:BufferedImage, x:AxisGuess, y:AxisGuess, rgbFilter:(Int) => Boolean) = {
-		val (byX, byY) = countPixels(img, rgbFilter)
-		(scanGuess(x, new Threshold(byX, img.getHeight/2)), scanGuess(y, new Threshold(byY, img.getWidth/2)))
-	}
 	def findPeriod(peaks:Seq[Peak]): Option[AxisGuess] = {
-		var bestderivation = 1000
+		var bestderivation = 1000.
 		var bestguess = Option.empty[AxisGuess]
 		for (i <- 1 until peaks.size) {
 			val prev = peaks(i - 1)

@@ -72,7 +72,7 @@ class GridSearch extends FunSuite {
 			show("Strong: "+name, filter(img, strong))
 			val weak = new RgbIntensityFilter((intensity*0.9).toInt)
 //			show("Weak: "+name, filter(img, weak))
-			val grid = detectGrid(img, weak, strong)
+			val grid = detectGrid(img)
 			val g2d = img.createGraphics();
 			g2d.setColor(Color.green)
 			g2d.setStroke(new BasicStroke(2))
