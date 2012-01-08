@@ -4,9 +4,9 @@ import java.awt.geom.{Line2D}
 import java.awt.{Graphics2D, Color, BasicStroke}
 import scala.swing._
 import javax.swing.ImageIcon
-
 import minefinder.ImageTools._
-
+import minefinder.AxisGuess._
+import java.awt.Graphics
 class GridSearch extends FunSuite {
 	import minefinder.GridSearch._
 	val fields = Field.all
@@ -40,37 +40,56 @@ class GridSearch extends FunSuite {
 //			show("Filtered "+name, filtered )
 		}
 	}
-	test("detect lines") {
+	def scaleTo(values:Seq[Double], maxTargetValue:Double) = {
+		val maxCurrentValue = values.max
+		val minCurrentValue = values.min
+		def scaleValue(x:Double) = {
+			(x-minCurrentValue)/(maxCurrentValue-minCurrentValue)*maxTargetValue
+		}
+		values.map(scaleValue)
+	}
+	def drawHistogram(values:Seq[Double], gc:Graphics, height:Int) {
+		for (i <- 1 until values.size) {
+			gc.drawLine(i-1, height - values(i-1).toInt, i, height - values(i).toInt)
+		}
+	}
+	test("draw intensities") {
 		for(field <- fields) {
 			val name = field.name
 			val img = field.image
-			val filtered:BufferedImage = bw(img)
-			assert(filtered  != null)
-			val (byX,byY) = detectLines(filtered, x=> (x&0xFFFFFF) < 10)
-			val g2d = filtered.createGraphics();
-			g2d.setColor(Color.green)
-			g2d.setStroke(new BasicStroke(2))
-//				println("Width: "+img.getWidth+", Height: "+img.getHeight)
-			for(x <- byX) {
-//					println(Seq("Line", x.x, 0, x.x, img.getHeight-1))
-				g2d.draw(new Line2D.Float(x.x, 0, x.x, img.getHeight-1))
-			}
-			for(y <- byY) {
-				g2d.draw(new Line2D.Float(0, y.x, img.getWidth-1 , y.x))
-			}
-			g2d.dispose();
-//				show("Lines "+name, filtered )
+			val intensities = makeIntensityArrays(img, classicDarkIntensity)
+			val gc = img.createGraphics
+			gc.setColor(Color.red)
+			gc.setStroke(new BasicStroke(1))
+			drawHistogram(scaleTo(intensities(0), img.getHeight - 2), gc, img.getHeight)
+			gc.dispose()
+			show("Intensity "+name, img)		
 		}
-
+	}
+	test("detect period") {
+		for(field <- fields) {
+			val name = field.name
+			val img = field.image
+			val intensities = makeIntensityArrays(img, classicDarkIntensity)
+			val axises = intensities.map(guessAxisPeriod(_))
+			if (true) {
+				val g = img.createGraphics
+				g.setColor(Color.green)
+				g.setStroke(new BasicStroke(1))
+				axises(0).drawX(g)
+				axises(1).drawY(g)
+				g.dispose()
+				show("Step "+name, img)
+			}
+			assert(field.checkStepX(axises(0).step))
+			assert(field.checkStepY(axises(1).step))
+		}
 	}
 	test("detect grid") {
 		for(field <- fields) {
 			val name = field.name
 			val img = field.image
 			val intensity = calcMeanIntensity(img)
-			val strong = new RgbIntensityFilter((intensity*0.5).toInt)
-			show("Strong: "+name, filter(img, strong))
-			val weak = new RgbIntensityFilter((intensity*0.9).toInt)
 //			show("Weak: "+name, filter(img, weak))
 			val grid = detectGrid(img)
 			val g2d = img.createGraphics();
