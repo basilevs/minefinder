@@ -23,6 +23,35 @@ class ListDialog extends Dialog {
 	}
 }
 
+trait OnceCloseable extends  AutoCloseable {
+	def closeOnce
+	private var closed = false
+	final def close {
+		if (!closed) {
+			closeOnce
+			closed = true
+		}
+	}
+	override def finalize {
+		close
+	}
+}
+
+object OnceCloseable {
+	def tryWith[A<%AutoCloseable, R](ac: A)(f: A => R):R =
+	{
+		try {
+			f(ac)
+		} finally {
+			ac.close
+		}
+	}
+	def tryWith[A1<%AutoCloseable, A2<%AutoCloseable, R](ac1: A1, ac2:A2)(f: (A1,A2) => R):R = {
+		tryWith(ac1) { r1 => tryWith(ac2) {r2 => f(r1, r2)}}
+	}
+}
+
+
 object Error {
 	class SampleView(s:Sample) extends Label {
 		icon = new ImageIcon(s.img)
