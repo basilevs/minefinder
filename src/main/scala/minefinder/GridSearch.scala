@@ -18,7 +18,7 @@ class AxisGuess(val start:Double, val step:Double) {
 	def calcLinesIntensity(intensity:Array[Double]) = {
 		var sum = 0.
 		var count = 0
-		val maxDist = max(step / 14, 1)
+		val maxDist = max(step / 20, 1)
 		for (	x <- 0 until intensity.length;
 				if distance(x) < maxDist 
 		) {
@@ -39,15 +39,34 @@ class AxisGuess(val start:Double, val step:Double) {
 		sum/count
 	}
 	def calcSignalNoiseRate(intensity:Array[Double]) = {
-		val rv = calcLinesIntensity(intensity)/calcCellsIntensity(intensity)
-		rv
+		var signalSum = 0.
+		var signalCount = 0
+		var noiseSum = 0.
+		var noiseCount = 0
+		val maxDist = max(step / 20, 1)
+		for (	x <- 0 until intensity.length) {
+			val d = distance(x) 
+			val i = intensity(x)
+			if (d < maxDist) {
+				signalSum += i
+				signalCount += 1
+			} else if (d > maxDist*2) {
+				noiseSum += i
+				noiseCount += 1
+			}
+		}
+		signalSum/signalCount/noiseSum*noiseCount
 	}
 	def findAxis(intensity:Array[Double], minIntensity:Double):Axis = {
 		var position = start % step
 		var found = false
 		var newstart = 0.
 		while (position < intensity.length) {
-			val hit = intensity(position.toInt) > minIntensity 
+			val idx = position.toInt
+			val a = intensity(idx)
+			val b = intensity(idx-1)
+			val c = intensity(idx+1)
+			val hit = intensity.slice(idx-1, idx+2).exists(_ > minIntensity) 
 			if (hit && !found) {
 				newstart = position
 				found = true
@@ -61,14 +80,14 @@ class AxisGuess(val start:Double, val step:Double) {
 		return new Axis(newstart.toFloat, step, ((position - step  - newstart) / step).toInt)
 	}
 	def drawX(g:Graphics) {
-		val length = 200
+		val length = 100
 		for (xIdx <- 0 until 10) {
 			val x = (start%step + step*xIdx).toInt 
 			g.drawLine(x, 0, x, length)
 		}
 	}
 	def drawY(g:Graphics) {
-		val length = 200
+		val length = 100
 		for (xIdx <- 0 until 10) {
 			val x = (start%step + step*xIdx).toInt 
 			g.drawLine(0, x, length, x)
@@ -77,17 +96,14 @@ class AxisGuess(val start:Double, val step:Double) {
 }
 
 object AxisGuess {
-	def emitHypothesis(minStart:Float, maxStart:Float, minStep:Float, maxStep:Float) =  {
-		val startStep = maxStep/36
-		val stepStep = max(startStep/maxStep, 0.01)
-		val maxStartIdx = (maxStart-minStart)/startStep
+	def emitHypothesis(minStep:Float, maxStep:Float) =  {
+		val stepStep = 0.05
 		val maxStepIdx = (maxStep - minStep)/stepStep
 		for (
-			startIdx <- 0 until maxStartIdx.toInt;
-			stepIdx  <- 0 until maxStepIdx.toInt
+			stepIdx  <- 0 until maxStepIdx.toInt;
+			step = minStep + stepStep.toDouble * stepIdx;
+			start <- 0.until(step.toInt, max(1, step/36).toInt)
 		) yield {
-			val start = minStart + startStep.toDouble * startIdx 
-			val step = minStep + stepStep.toDouble * stepIdx  
 			new AxisGuess(start.toFloat, step.toFloat)
 		}
 	}
@@ -113,7 +129,7 @@ object AxisGuess {
 //		byX.map(x=>println(x.toString))
 	}
 	def guessAxisPeriod(intensity:Array[Double]):AxisGuess = {
-		val hypotesis:Iterable[AxisGuess] = emitHypothesis(10, intensity.length/10, 10, intensity.length/10)
+		val hypotesis:Iterable[AxisGuess] = emitHypothesis(10, intensity.length/10)
 		val selected = hypotesis.map(h => (h, h.calcSignalNoiseRate(intensity))).maxBy(_._2)
 /*		val test = new AxisGuess(selected._1.start, selected._1.step*2)
 		val testrate = test.calcSignalNoiseRate(intensity)
@@ -121,7 +137,7 @@ object AxisGuess {
 	}
 }
 
-class Axis(val start:Double, val step:Double, val count:Int) {
+class Axis(start:Double, step:Double, val count:Int) extends AxisGuess(start, step) {
 	def stop = start+(step*count)
 }
 
@@ -168,16 +184,15 @@ class Grid(x:Axis, y:Axis) {
 
 object GridSearch {
 	import AxisGuess._
-	def detectGrid(img:BufferedImage, pixelIntensityDetect:(Int) => Double, lineTestIntensity:(Int) => Double, minLineIntensity:Double): Grid = {
+	def detectGrid(img:BufferedImage, pixelIntensityDetect:(Int) => Double, lineTestIntensity:(Int) => Double): Grid = {
 		val guessIntesities = makeIntensityArrays(img, pixelIntensityDetect)
 		val guesses = guessIntesities.map(AxisGuess.guessAxisPeriod)
 		val axisIntesities = makeIntensityArrays(img, lineTestIntensity)
-		val axises = guesses.zip(axisIntesities).map(pair => pair._1.findAxis(pair._2, minLineIntensity)) 
+		val axises = guesses.zip(axisIntesities).map(pair => pair._1.findAxis(pair._2, pair._2.max/2)) 
 		new Grid(axises(0), axises(1))
 	}
 	def detectGrid(img:BufferedImage):Grid = {
-		val mean = calcMeanIntensity(img)
-		detectGrid(img, classicDarkIntensity, classicDarkIntensity, mean/1.8)
+		detectGrid(img, classicDarkIntensity, classicDarkIntensity)
 	}
 }
 
