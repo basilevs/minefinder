@@ -1,16 +1,17 @@
 package minefinder;
 
 import math.{abs, min}
-
 import java.awt.Image
 import java.awt.image.{BufferedImage, DirectColorModel, ImageFilter, FilteredImageSource, RGBImageFilter, Raster, DataBufferInt}
 import java.awt.{Toolkit, RenderingHints}
 import java.awt.geom.{Line2D}
 import java.awt.{Graphics2D}
+import java.awt.Color
 
 
 object ImageTools {
 	private val bufferedBuilder = new BufferedImageBuilder()
+	implicit def imageToDimension(img:Image) = new java.awt.Dimension(img.getWidth(null), img.getHeight(null))
 	class Color(shift:Int) {
 		val mask:Int = 0xFF << shift
 		def get(rgb:Int):Int = (rgb & mask) >> shift
@@ -99,12 +100,13 @@ object ImageTools {
 		if (margin <= 0) {
 			img
 		} else {
-			val width = img.getWidth - 2 * margin
-			val height = img.getHeight - 2 * margin
+			val width = img.getWidth - (2 * margin)
+			val height = img.getHeight - (2 * margin)
 			val rv = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
 			val gc = rv.createGraphics
-			gc.drawImage(img, -2, -2, width, height, null)
+			gc.drawImage(img, -margin, -margin, Color.black, null)
 			gc.dispose
+			assert(rv.getHeight == img.getHeight - 2 * margin)
 			rv
 		}
 	}

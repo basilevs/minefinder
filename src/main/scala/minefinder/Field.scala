@@ -1,6 +1,7 @@
 package minefinder;
 
 import math.abs
+import swing._
 
 trait Cell {
 	def x:Int
@@ -18,12 +19,13 @@ trait Cell {
 	override def hashCode = (1000 * y) + x
 }
 
-class Field(val columns:Int, marks:Seq[Option[Mark]]) extends Iterable[Cell] {
+class Field(val columns:Int, marks:Seq[RecognitionResult]) extends Iterable[Cell] {
 	val rows = marks.size/columns
 	val cells = marks.zipWithIndex.map( p => new CellI(p._1, p._2)) 
-	class CellI(val mark:Option[Mark], pos:Int) extends Cell {
+	class CellI(val result:RecognitionResult, pos:Int) extends Cell {
 		val x = pos % columns
 		val y = pos / columns
+		def mark = result.result
 		def neighbours = (for (
 			xn <- math.max(x-1, 0) to math.min(x+1, columns-1);
 			yn <- math.max(0, y-1) to math.min(y+1, rows-1);
@@ -31,7 +33,34 @@ class Field(val columns:Int, marks:Seq[Option[Mark]]) extends Iterable[Cell] {
 		) yield {val pos = yn*columns + xn; cells(pos) } ).toSeq
 		override def toString = "x:%d, y:%d, mark:%s".format(x, y, mark.getOrElse("None").toString)
 	}
+	def getRow(y:Int) = marks.slice(columns*y, columns*(y+1))
 	def iterator = cells.iterator
+}
+
+class FieldView(field:Field) extends Frame {
+	class RecognitionButton(r:RecognitionResult) extends Button {
+		text = r.result match {
+			case Some(Number(n)) => n.toString
+			case Some(Mine) => "m"
+			case Some(Question) => "?"
+			case Some(Closed) => "c"
+			case None => "u"
+		}
+		action = new Action(text) {
+			def apply {
+				val v = r.getView
+				v.open
+			}
+		}
+	}
+	class Row(data:Seq[RecognitionResult]) extends BoxPanel(Orientation.Horizontal) {
+		contents ++= data.map(new RecognitionButton(_))
+	}
+	
+	contents = new BoxPanel(Orientation.Vertical) {
+		contents ++= 0.until(field.rows).map(idx => new Row(field.getRow(idx)))
+	} 
+	
 }
 
 object Field {

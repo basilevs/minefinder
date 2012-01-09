@@ -6,15 +6,62 @@ import collection.JavaConversions._
 import java.awt.image.{BufferedImage}
 import javax.imageio.ImageIO
 import java.io.{FileOutputStream, ObjectOutputStream, FileInputStream, ObjectInputStream, FileNotFoundException, EOFException, ByteArrayOutputStream, ByteArrayInputStream}
+import java.nio.file.Paths
+import OnceCloseable._
 
+/* Persistent storage of samples. */
+class SampleStorage(name:String) {
+	import SampleStorage._
+	def filename = name+".ser"
+	def save(data:Iterator[Sample]) {
+		def filename = name+".ser"
+		val oos = new ObjectOutputStream(new FileOutputStream(filename))
+		for (pair <- data) {
+			oos.writeObject((pair.mark, toBytes(pair.img)))
+		}
+		oos.close()
+	}
+	def load:Iterator[Sample] with AutoCloseable = {
+		try {
+			new Iterator[Sample]() with AutoCloseable {
+				val fis = new FileInputStream(filename)
+				val ois = new ObjectInputStream(fis)
+				println("Opened: "+Paths.get(filename).toAbsolutePath)
+				var count = 0
+				def getNext = {
+					try {
+						val data = ois.readObject().asInstanceOf[(Mark, Array[Byte])]
+						count += 1
+						new Sample(data._1, toImage(data._2))
+					} catch {
+						case e:EOFException => {
+							println("Read %d samples from %s".format(count, filename))
+							null
+						}
+					}
+				}
+				def close {
+					ois.close
+					fis.close
+				}
+				override def finalize {close}
+				var _next = getNext
+				def next = {val rv = _next; _next = getNext; rv}
+				def hasNext = _next != null 
+			}
+		} catch {
+			case e:FileNotFoundException => new Iterator[Sample]() with AutoCloseable {def hasNext = false; def next = null; def close {}}
+		}
+	}
+}
 /**
  * Persistent sample storage for algorithm teaching.
- * Call clear to prevent ondisk storage overwrite on finalization.
+ * Controls uniqueness.
  */
-class SampleStorage(name:String) extends collection.mutable.Set[Sample] {
+class UniqSampleStorage(name:String) extends collection.mutable.Set[Sample] {
 	private val self = Buffer[Sample]()
+	private val storage = new SampleStorage(name)
 	val listeners = Buffer[Sample => Unit]()
-	def filename = name+".ser"
 	import SampleStorage._
 	load
 	def find(img:BufferedImage):Option[Sample] = {
@@ -25,7 +72,7 @@ class SampleStorage(name:String) extends collection.mutable.Set[Sample] {
 		!res.isEmpty && res.get.mark == s.mark
 	}
 	def iterator = self.iterator
-	def += (pair: Sample): SampleStorage.this.type = {
+	def += (pair: Sample): UniqSampleStorage.this.type = {
 		assert(pair._2 != null)
 		val res = find(pair.img)
 		if (!res.isEmpty) {
@@ -36,42 +83,22 @@ class SampleStorage(name:String) extends collection.mutable.Set[Sample] {
 		listeners.foreach(_(pair))
 		this
 	}
-	def -= (pair: Sample):SampleStorage.this.type = {
+	def -= (pair: Sample):UniqSampleStorage.this.type = {
 		assert(pair.img != null)
 		find(pair.img).foreach(self.-=)
 		this
 	}
 	def load {
 		self.clear
-		try {
-			val fis = new FileInputStream(filename)
-			val ois = new ObjectInputStream(fis)
-			try {
-				while(true) {
-					val data = ois.readObject().asInstanceOf[(Mark, Array[Byte])]
-					self += Sample(data._1, toImage(data._2))
-				}
-			} catch {
-				case e:EOFException =>
-			} finally {
-				ois.close
-				fis.close
-			}
-		} catch {
-			case e:FileNotFoundException =>
-		}
+		tryWith(storage.load){self ++= _} 
 	}
 	def save {
-		val oos = new ObjectOutputStream(new FileOutputStream(filename))
-		for (pair <- self) {
-			oos.writeObject((pair._1, toBytes(pair._2)))
-		}
-		oos.close()
+		storage.save(self.iterator)
 	}
 }
 
 object SampleStorage {
-	val instance = new SampleStorage("samples")
+	val instance = new UniqSampleStorage("samples")
 	def toBytes(img:BufferedImage):Array[Byte] = {
 		val baos = new ByteArrayOutputStream();
 		ImageIO.write(img, "PNG", baos);

@@ -1,7 +1,7 @@
 package minefinder;
 
 import math.{abs, max}
-import java.awt.Image
+import java.awt.{Image, Dimension}
 import java.awt.image.{BufferedImage, ImageFilter, FilteredImageSource, RGBImageFilter}
 import java.awt.Toolkit
 import java.awt.geom.{Line2D}
@@ -184,22 +184,28 @@ class Grid(x:Axis, y:Axis) {
 
 object GridSearch {
 	import AxisGuess._
-	def detectGrid(img:BufferedImage, pixelIntensityDetect:(Int) => Double, lineTestIntensity:(Int) => Double): Grid = {
+	def detectGrid(img:BufferedImage, pixelIntensityDetect:(Int) => Double): Grid = {
 		val guessIntesities = makeIntensityArrays(img, pixelIntensityDetect)
 		val guesses = guessIntesities.map(AxisGuess.guessAxisPeriod)
-		val axisIntesities = makeIntensityArrays(img, lineTestIntensity)
-		val axises = guesses.zip(axisIntesities).map(pair => pair._1.findAxis(pair._2, pair._2.max/2)) 
+		val axises = guesses.zip(guessIntesities).map(pair => pair._1.findAxis(pair._2, pair._2.max/2)) 
 		new Grid(axises(0), axises(1))
 	}
 	def detectGrid(img:BufferedImage):Grid = {
-		detectGrid(img, classicDarkIntensity, classicDarkIntensity)
+		detectGrid(img, classicDarkIntensity)
 	}
 }
 
+/** Caches found grid*/
 class GridSearch {
 	import GridSearch._
-	def search(img:Image) {
-		var filtered:Image = null
-		
+	import ImageTools.imageToDimension
+	var dimension = Option.empty[Dimension]
+	var grid = Option.empty[Grid]
+	def search(img:BufferedImage) = {
+		val nd = imageToDimension(img)
+		if (Option(nd) != dimension) {
+			grid = Option(detectGrid(img))
+		}
+		grid.get
 	}
 }

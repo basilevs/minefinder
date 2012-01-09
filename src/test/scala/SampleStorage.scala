@@ -4,7 +4,7 @@ import java.awt.image.{BufferedImage}
 import java.nio.file.Files.deleteIfExists
 import java.nio.file.Paths
 
-import minefinder.{Number, SampleStorage => Subject}
+import minefinder.{Number, UniqSampleStorage => Subject}
 import minefinder.ImageTools._
 
 
@@ -20,8 +20,8 @@ class SampleStorageTest extends FunSuite {
 	
 	test("image serialization") {
 		val image = fields(0).image
-		val bytes = Subject.toBytes(image)
-		val image2 = Subject.toImage(bytes)
+		val bytes = minefinder.SampleStorage.toBytes(image)
+		val image2 = minefinder.SampleStorage.toImage(bytes)
 		assert(compare(image, image2)==0)
 	}
 	

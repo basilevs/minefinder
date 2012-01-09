@@ -6,10 +6,13 @@ object Controller extends App {
 	var doWork = true
 	var windowsArePresent = false
 	val productionRecognizer = new Cascade {
+		def name = "ProductionRecognizer"
 		val user = new AskUser()
 		val next = Seq(new AutomaticRecognizer, user)
-		for (sample <- SampleStorage.instance) {
-			train(sample.mark, sample.img)
+		if (needTrain) {
+			for (sample <- SampleStorage.instance) {
+				train(sample.mark, sample.img)
+			}
 		}
 		SampleStorage.instance.listeners += (sample => {
 			println("Got notification "+sample.mark)
@@ -31,19 +34,29 @@ object Controller extends App {
 				val cImg = grid.getCellImage(x, y, img)
 				productionRecognizer.recognize(cImg)
 			}
-			SampleStorage.instance.save
 			val f = new Field(grid.columns, marks.toSeq)
 			val cells = Field.getCellsWithMineFlag(f)
 			println("Clicking: "+ cells)
-			for (c <- cells) {
-				val (x, y) = grid.getMiddle(c._1.x, c._1.y)
-				if (c._2) {
-					window.rclick(x, y)
-				} else {
-					window.lclick(x, y)
+			if (window.isCompletelyVisible) {
+				for (c <- cells) {
+					val (x, y) = grid.getMiddle(c._1.x, c._1.y)
+					if (c._2) {
+						window.rclick(x, y)
+					} else {
+						window.lclick(x, y)
+					}
+					if (!window.isCompletelyVisible) {
+						println("Window is unaccessible after clicking "+c)
+						val v = new FieldView(f)
+						v.visible = true
+						throw new Window.MouseClickException()
+					}
+				}
+				if (window.isCompletelyVisible) {
+					windowsArePresent = true
+					productionRecognizer.save
 				}
 			}
-			windowsArePresent = true
 		} catch { //Exceptions are not propagated from within JNA hook
 			case mc:Window.MouseClickException => {}
 			case a:Exception => {

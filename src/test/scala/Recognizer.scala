@@ -1,9 +1,10 @@
 import org.scalatest.FunSuite
-
 import minefinder._
 import java.awt.image.{BufferedImage}
 import Recognizer._
 import GridSearch._
+import java.awt.Color
+import java.awt.BasicStroke
 
 
 
@@ -11,7 +12,8 @@ class RecognizerTest extends FunSuite {
 	def validateRecognition(r:Recognizer, m:Mark, img:BufferedImage) {
 		r.train(m, img)
 		val result = r.recognize(img)
-		if (result.get != m) {
+		if (result.result.isDefined)
+		if (result.result.get != m) {
 			Thread.dumpStack
 			assert(false)
 		}
@@ -41,19 +43,21 @@ class RecognizerTest extends FunSuite {
 			total +=1
 			assert(total>0)
 			val rv = subject.recognize(img)
-			if (!rv.isEmpty) {
-				if (rv.get == mark) {
+			if (rv.isDefined) {
+				if (rv.result.get == mark) {
 					correct+=1
 					assert(correct>0)
 				} else {
 					wrong += 1
 					assert(wrong>0)
-					println(prefix+": recognized: "+rv.get+", truth: "+ mark)
+					println(prefix+": recognized: "+rv.result.get+", truth: "+ mark)
 				}
 			}
 		}
-		for (pair <- training) {
-			validateRecognition(subject, pair._1, pair._2)
+		if (subject.needTrain) {
+			for (pair <- training) {
+				validateRecognition(subject, pair._1, pair._2)
+			}
 		}
 		val format = "%20s: rate: %.3f, errrrate: %.3f, times: %s"
 		def go = {
@@ -84,6 +88,35 @@ class RecognizerTest extends FunSuite {
 			val next = Seq(new ColorDifference(50))
 		}
 		new RecognizerQuality("ClippedColor", subject).print
+		val img = new BufferedImage(20, 20, BufferedImage.TYPE_INT_RGB)
+		val g = img.createGraphics
+		g.setColor(Color.green)
+		g.setStroke(new BasicStroke(2))
+		g.drawRect(0,0,19, 19)
+		g.setColor(Color.blue)
+		g.drawRect(5,5,14, 14)
+		g.dispose
+		subject.recognize(img).getView.open
+	}
+	test("AreaSelectorColor") {
+		val subject = new AreaSelector {
+			val next = Seq(new ColorDifference(50))
+		}
+		new RecognizerQuality("AreaSelectorColor", subject).print
+		for (sample <- SampleStorage.instance.filter(_.mark == Number(1)).toSeq.splitAt(10)._1) {
+			subject.recognize(sample.img).getView.open
+		}
+	}
+	test("AreaSelectorGray") {
+		val subject = new AreaSelector {
+			val next = Seq(new GrayDifference(8))
+		}
+		new RecognizerQuality("AreaSelectorGray", subject).print
+	}
+	test("AreaSelectorGrayShowResult") {
+		val subject = new AreaSelector {
+			val next = Seq(new GrayDifference(8))
+		}
 	}
 	test("ClippedGray") {
 		class ClippedGray extends Clip {

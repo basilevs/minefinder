@@ -1,8 +1,13 @@
 package minefinder;
 import java.awt.image.{BufferedImage}
+
+import java.awt.Color
 import math.{abs, min}
 import javax.swing.ImageIcon
+import swing._
 import swing.{Button, Dialog, Action, BoxPanel, Orientation, Label}
+import OnceCloseable._
+import Option._
 
 case class Sample(mark:Mark, img:BufferedImage) {
 	def _1 = mark
@@ -10,8 +15,49 @@ case class Sample(mark:Mark, img:BufferedImage) {
 }
 
 trait Recognizer {
-	def recognize(img:BufferedImage): Option[Mark]
+	def recognize(img:BufferedImage):RecognitionResult
 	def train(mark:Mark, img:BufferedImage)
+	def needTrain:Boolean
+	def save
+	def name:String
+}
+
+class RecognitionResult(
+	val query:BufferedImage,
+	val result:Option[Mark],
+	val recognizer:Recognizer,
+	val reason:Option[RecognitionResult] = None,
+	val pattern:Option[BufferedImage]= None
+) {
+	override def equals(that:Any) = that match {
+		case thatRes:RecognitionResult => result == thatRes.result
+		case _ => false
+	}
+	def iterator = new Iterator[RecognitionResult] {
+		var _next:RecognitionResult = RecognitionResult.this
+		def next = {
+			val rv = _next;
+			_next = rv.reason.getOrElse(null)
+			if (_next == RecognitionResult.this)
+				_next = null
+			rv
+		}
+		def hasNext = _next != null
+	} 
+	def isDefined = result.isDefined
+	class ViewPanel extends BoxPanel(Orientation.Horizontal) {
+		contents += new Label{text = recognizer.name}
+		contents += new Label{icon = new ImageIcon(query); text = result.getOrElse("None").toString}
+		if (pattern.isDefined)
+			contents += new Label{icon = new ImageIcon(pattern.get)}
+	}
+	private def getViewPanel = new ViewPanel()
+	class View extends Dialog {
+		contents = new BoxPanel(Orientation.Vertical) {
+			contents ++= RecognitionResult.this.iterator.map(_.getViewPanel)
+		}
+	}
+	def getView = new View()
 }
 
 object Recognizer {
@@ -19,12 +65,26 @@ object Recognizer {
 
 	import ImageTools._
 	import Error._
-	trait Difference  extends Recognizer {
+	abstract class Difference(name:String = null)  extends Recognizer {
 		type Pair = Sample
+		private val storage = new SampleStorage(name) 
 		val exactMatchThreshold:Float
 		val probableMatchThreshold:Float
 		val patterns = collection.mutable.Buffer[Pair]()
-		val list = new ListDialog()
+		val list = new ListDialog()	
+		def needTrain = patterns.size == 0
+		def load {
+			if (name != null) {
+				patterns.clear
+				tryWith(storage.load){patterns ++= _}
+			}
+		}
+		load
+		def save {
+			if (name != null) {
+				storage.save(patterns.iterator)
+			}
+		}
 		def recognizeToPair(img:BufferedImage):Option[(Pair, Float)] = {
 			var found = Option.empty[(Pair, Float)]
 			for ( pair <- patterns ) {
@@ -62,10 +122,10 @@ object Recognizer {
 				}
 			}
 		}
-		def recognize(img:BufferedImage):Option[Mark] = {
+		def recognize(img:BufferedImage) = {
 			if (patterns.size==0) {
 				println("Warning: difference recognition without patterns")
-				Option.empty[Mark]
+				new RecognitionResult(img, None, this)
 			} else {
 				val pair = recognizeToPair(img)
 				for (p <- pair) {
@@ -75,13 +135,13 @@ object Recognizer {
 					}
 					
 				}
-				pair.map(p =>p._1._1)
+				new RecognitionResult(img, pair.map(_._1.mark), this, None, pair.map(_._1.img))
 			}
 		}
 		def difference(img1:BufferedImage, img2:BufferedImage):Float
 	}
 	
-	class ColorDifference(maxPixelDiff:Float) extends Difference { 
+	class ColorDifference(maxPixelDiff:Float, name:String = null) extends Difference(name) { 
 		val probableMatchThreshold = maxPixelDiff
 		val exactMatchThreshold = 2.F
 		def difference(img1:BufferedImage, img2:BufferedImage) = {
@@ -89,9 +149,11 @@ object Recognizer {
 //			println("Color difference: "+rv)
 			rv
 		}
+		def name = "ColorDifference("+maxPixelDiff+")"
 	}
 	
-	class GrayDifference(maxPixelDiff:Float) extends Difference { 
+	class GrayDifference(maxPixelDiff:Float, name:String = null) extends Difference(name) {
+		def name = "GrayDifference(%f)".format(maxPixelDiff)
 		val probableMatchThreshold = maxPixelDiff
 		val exactMatchThreshold = 2.F
 		def difference(img1:BufferedImage, img2:BufferedImage) = {
@@ -102,35 +164,31 @@ object Recognizer {
 	}
 	trait Cascade  extends Recognizer {
 		val next:Iterable[Recognizer]
-		def recognize(img:BufferedImage): Option[Mark] = {
+		def recognize(img:BufferedImage):RecognitionResult = {
 			for (n <- next) {
 				val rv = n.recognize(img)
-				if (!rv.isEmpty)
+				if (rv.isDefined)
 					return rv
 			}
-			Option.empty[Mark]
-//				next.flatMap(_.recognize(img)).headOption
-/*
-			val results = next.flatMap(_.recognize(img)).toSet
-			if (results.size == 1) {
-				results.headOption
-			} else {
-				Option.empty[Mark]
-			}
-*/
+			new RecognitionResult(img, None, this)
 		}
+		def needTrain = next.exists(_.needTrain)
 		def train(mark:Mark, img:BufferedImage) {
 			next.foreach(_.train(mark, img))
 		}
+		def save {
+			next.foreach(_.save)
+		} 
 	}
 	
 	trait Transforming extends Cascade {
-		override def recognize(img:BufferedImage): Option[Mark] = {
+		override def recognize(img:BufferedImage) = {
 			val t = transform(img)
 			if (t == null) {
-				Option.empty[Mark]
+				new RecognitionResult(img, None, this)
 			} else {
-				super.recognize(t)
+				var res = super.recognize(t)
+				new RecognitionResult(img, res.result, this, Option(res))
 			}
 		}
 		override def train(mark:Mark, img:BufferedImage) {
@@ -143,14 +201,95 @@ object Recognizer {
 	}
 	
 	trait Clip extends Transforming {
+		def name = "Clip"
 		def transform(img:BufferedImage) = {
 			clip(img, min(img.getHeight, img.getWidth)/10)
+		}
+	}
+	class StandardDeviation {
+		import math._
+		private var sumSq = 0.
+		private var sum = 0.
+		private var n = 0
+		def sq = {
+			val rv = 1./(n-1)*(sumSq - sum*sum/n)
+			assert(!rv.isNaN)
+			assert(rv >= 0)
+			rv
+		}
+		def apply =  sqrt(sq)
+		def mean = sum/n
+		def += (x:Double) {sumSq += x*x; sum += x; n += 1}
+	}
+	class ColorStandardDeviation {
+		private val dev = Vector(new StandardDeviation, new StandardDeviation, new StandardDeviation)
+		def += (color:Int) = {
+			dev(0) += color & 0xFF0000
+			dev(1) += color & 0x00FF00
+			dev(2) += color & 0x0000FF
+		}
+		def apply = math.sqrt(dev.map(_.sq).sum) 
+	}
+	trait AreaSelector extends Transforming {
+		def name = "AreaSelector"
+		import AreaSelector._
+		def transform(img:BufferedImage) = {
+			val dispersions = getDispersions(img)
+			val intervals =  dispersions.map(getMaxTwoMinIdx).map(p => (p._2, p._3))
+			
+			if (intervals(0) == (0, img.getWidth) && intervals(1) == (0, img.getHeight)) {
+				null
+			} else if (intervals.exists(p=>((p._2 - p._1) < 5) || p._1 < 0 || p._2 < 0)) {
+				null
+			} else {
+				val rv = new BufferedImage(intervals(0)._2 - intervals(0)._1, intervals(1)._2 - intervals(1)._1, BufferedImage.TYPE_INT_RGB)
+				val g = rv.createGraphics
+				g.drawImage(img, -intervals(0)._1, -intervals(1)._1, Color.black, null)
+				g.dispose
+				rv
+			}	
+		}
+	} 
+	object AreaSelector {
+		def getDispersions(img:BufferedImage) = {
+			val byX = Array.fill(img.getWidth){new ColorStandardDeviation}
+			val byY = Array.fill(img.getHeight){new ColorStandardDeviation}
+			for (
+				y <- 0 until img.getHeight;
+				x <- 0 until img.getWidth
+			) {
+				val color=img.getRGB(x, y)
+				byX(x) += color
+				byY(y) += color
+			}
+			Seq(byX.map(_.apply), byY.map(_.apply))
+		}
+		def getMaxTwoMinIdx(data:Array[Double]) = {
+			var max = -1
+			var min1 = -1
+			var min2 = -1
+			for (i <- 0 until data.size) {
+				val x = data(i)
+				if (max < 0 || x > data(max)) {
+					max = i
+					if (min2 > 0 && (min1 < 0 || data(min2) < data(min1))) {
+						min1 = min2
+					}
+					min2 = -1
+				}
+				if (min2 < 0 || x < data(min2))
+					min2 = i
+			}
+			assert(min1 <= max)
+			assert(min2 >= max)
+			(max, min1, min2)
 		}
 	}
 	
 	trait Scaling extends Transforming {
 		val height:Int
 		val width:Int
+		def name = "Scaling(%d, %d)".format(height, width)
 		def transform(img:BufferedImage) = {
 //			println("Height: "+img.getHeight+", width: "+ img.getWidth)
 			if (abs(img.getHeight - height) < 2 && abs(img.getWidth - width) < 2)
@@ -161,13 +300,16 @@ object Recognizer {
 	}
 	
 	class AskUser extends Recognizer {
+		def name = "AskUser"
 		var userQuestions = 0
-		def recognize(img:BufferedImage): Option[Mark] = {
+		def recognize(img:BufferedImage) = {
 			val auto = SampleStorage.instance.find(img)
-			auto.map(_.mark).orElse(ask(img))
+			new RecognitionResult(img, auto.map(_.mark).orElse(ask(img)), this, None)
 		}
-		def train(mark:Mark, img:BufferedImage) {
-		  
+		def needTrain = false
+		def train(mark:Mark, img:BufferedImage) {}
+		def save {
+			SampleStorage.instance.save
 		}
 		var selectedMark = Option.empty[Mark]
 		class UserDialog extends Dialog {
@@ -208,6 +350,7 @@ object Recognizer {
 	}
 	
 	trait BrightnessNormalizer extends Transforming {
+		def name = "BrightnessNormalizer"
 		def transform(img:BufferedImage) = {
 			val intensity = calcMeanIntensity(img)
 			val rv = adjustBrightness(img, 0xFF.toFloat / intensity)
@@ -218,22 +361,26 @@ object Recognizer {
 		}
 	}
 	class AutomaticRecognizer extends Cascade {
+		def name = "AutomaticRecognizer"
 		def colorRecognitions = {
 			println("colors")
-			Seq(new ColorDifference(55), new GrayDifference(9))
+			
 		}
 		val downScaled = new Scaling {
 			val height = 9
 			val width = 9
-			val next = colorRecognitions
+			val next = Seq(new ColorDifference(50, "09-scale-color-50"), new GrayDifference(8, "06-scale-gray-8"))
 		}
 		val brightnorm = new BrightnessNormalizer() {
-			val next = Seq(new GrayDifference(9)) 
+			val next = Seq(new GrayDifference(8, "10-clip-norm-gray-8")) 
 		}
 		val clip = new Clip() {
-			val next = colorRecognitions :+ brightnorm 
+			val next = Seq(new ColorDifference(50, "08-clip-color-50"), new GrayDifference(8, "07-clip-gray-8"), brightnorm) 
 		}
-		val next = Seq(clip, downScaled)
+		val area = new AreaSelector {
+			val next = Seq(new ColorDifference(50, "11-clip-color-50"), new GrayDifference(8, "12-clip-gray-8"))
+		}
+		val next = Seq(area, clip, downScaled)
 	}
 	/** Compares recognition result with user input
 	 *  Prints fails on console.
@@ -243,7 +390,7 @@ object Recognizer {
 		var total = 0.
 		var correct = 0.
 		var wrong = 0.
-		override def recognize(img:BufferedImage): Option[Mark] = {
+		override def recognize(img:BufferedImage):RecognitionResult = {
 			val auto = super.recognize(img)
 			val manual = user.recognize(img)
 			total += 1
@@ -261,17 +408,13 @@ object Recognizer {
 			user.train(mark, img)
 		}
 	}
-	class PersistentLearner(val storage:SampleStorage) extends Recognizer {
-		def recognize(img:BufferedImage) : Option[Mark] = Option.empty[Mark]
-		def train(mark:Mark, img:BufferedImage) {
-			storage += Sample(mark, img)
-		}
-	}
 	/** Uses sample collection and user input to train algorithms.
 	 */
 	class Training extends Verifying {
+		def name = "Training"
 		val automatic = new AutomaticRecognizer()
-		SampleStorage.instance.listeners += {sample => automatic.train(sample.mark, sample.img)}
+		if (automatic.needTrain)
+			SampleStorage.instance.listeners += {sample => automatic.train(sample.mark, sample.img)}
 		val next = collection.mutable.Buffer[Recognizer](automatic)
 		for (pair <- SampleStorage.instance ) {
 			train(pair._1, pair._2)

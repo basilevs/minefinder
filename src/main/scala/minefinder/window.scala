@@ -11,40 +11,11 @@ import com.sun.jna.ptr.IntByReference
 import com.sun.jna.Pointer
 
 import java.awt.image.{BufferedImage}
-import java.awt.Robot
+import java.awt.{Robot, MouseInfo, Point}
 import java.awt.Rectangle
 import java.awt.event.InputEvent
 import java.awt.Toolkit
 import java.awt.Dimension
-
-
-trait OnceCloseable extends  AutoCloseable {
-	def closeOnce
-	private var closed = false
-	final def close {
-		if (!closed) {
-			closeOnce
-			closed = true
-		}
-	}
-	override def finalize {
-		close
-	}
-}
-
-object OnceCloseable {
-	def tryWith[A<%AutoCloseable, R](ac: A)(f: A => R):R =
-	{
-		try {
-			f(ac)
-		} finally {
-			ac.close
-		}
-	}
-	def tryWith[A1<%AutoCloseable, A2<%AutoCloseable, R](ac1: A1, ac2:A2)(f: (A1,A2) => R):R = {
-		tryWith(ac1) { r1 => tryWith(ac2) {r2 => f(r1, r2)}}
-	}
-}
 
 import OnceCloseable._
 
@@ -122,6 +93,24 @@ object Region {
 	}
 	def createRectRegion(left:Int, top:Int, right:Int, bottom:Int) = {
 		new Region(GDI32.INSTANCE.CreateRectRgn(left, top, right, bottom))
+	}
+}
+
+object Mouse {
+	class Location(x:Int, y:Int) extends Point(x, y) {
+		def restore = {
+			robot.mouseMove(x,y)
+		}
+	}
+
+	private val robot = new Robot()
+	private def getCurrentMousePositionPair = {
+		val a = MouseInfo.getPointerInfo().getLocation()
+		(a.getX.toInt, a.getY.toInt)
+	}
+	def currentLocation = {
+		val (x, y) = getCurrentMousePositionPair
+		new Location(x, y)
 	}
 }
 
@@ -283,7 +272,6 @@ class Window(private val handle:HWND) {
 				throw new WindowRectException(Window.FormatLastError)
 			robot.mouseMove(rect.left + x, rect.top+y)
 			robot.mousePress(flag);
-			Thread.sleep(100);
 			robot.mouseRelease(flag);		
 		}
 	}
@@ -297,9 +285,7 @@ class Window(private val handle:HWND) {
 		toRectangle(getRECT)
 	}
 	def sendInputs(inputs:Iterable[INPUT]) {
-		User32.SetForegroundWindow(handle);
 		for (input <-inputs) {
-			Thread.sleep(10)
 			val arr = new Array[INPUT](1)
 			arr(0) = input
 			if (User32.SendInput(FullUser32.Convert.toDWORD(arr.size), arr, input.size).longValue != 1)
@@ -318,10 +304,22 @@ class Window(private val handle:HWND) {
 		(x:DWORD) => new FullUser32.MouseInput(x, X.toDouble / dim.getWidth, Y.toDouble / dim.getHeight)
 	}
 	def lclick(x:Int, y:Int) {
-		sendInputs(leftFlags.map(createInputFabric(x, y)))
+		clickInternal(x, y, InputEvent.BUTTON1_MASK)
+//		sendInputs(leftFlags.map(createInputFabric(x, y)))
 	}
 	def rclick(x:Int, y:Int) {
 		sendInputs(rightFlags.map(createInputFabric(x, y)))
+	}
+	def bringForeground = {
+		val f = User32.GetForegroundWindow;
+		if (f == Pointer.NULL) {
+			throw new WindowRaiseException("No window can be made foreground now.")
+		} 
+		if (f != handle && root.handle != f) {
+			User32.SetForegroundWindow(handle)
+		} else {
+			true
+		}
 	}
 	def captureImage = {
 		val robot = new Robot()

@@ -20,7 +20,7 @@ class WindowSuite extends FunSuite {
 				val title = x.text
 				if (title.length > 5) {
 					works = true
-					println(title)
+//					println(title)
 					true
 				} else {
 					true
@@ -103,12 +103,30 @@ class WindowSuite extends FunSuite {
 			ImageIO.write(img, "PNG", path.toFile)
 		}
 	}
-	ignore("click") {
+	test("focus") {
+		val mine = Window.GetMineSweeper
+		if (mine.isDefined) {
+			
+		}
+	}
+	test("click") {
 		val mine = Window.GetMineSweeper.get
+		val m = minefinder.Mouse.currentLocation
+		var exception = Option.empty[Exception]
 		def clickChild(w:Window) = {
-			w.lclick(98, 50)
+			try {
+				w.bringForeground
+				w.lclick(100, 230)
+			} catch {
+				case e:Exception => exception = Option(e)
+			}
 			false
 		}
 		mine.EnumChilds(clickChild)
+//		m.restore
+		exception.map(throw _)
+	}
+	test("foreground") {
+		Window.GetMineSweeper.map(_.bringForeground)
 	}
 }

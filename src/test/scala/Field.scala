@@ -14,12 +14,12 @@ class Field(val name:String, val rows:Int, val columns: Int, val xstep: Float = 
 
 object Field {
 	val all = Seq(
-		new Field("blue_upscale.png", 16, 30, 45.3F, 45.3F),
-		new Field("blue_light_right.png", 16, 30),
-		new Field("blue_light_left.png", 16, 30),
-		new Field("some.png", 16, 30),
+		new Field("blue_medium.png", 16, 16, 18.1F, 18F),
 		new Field("green.png", 16, 30),
-		new Field("blue_medium.png", 16, 16)
+		new Field("blue_light_right.png", 16, 30),
+		new Field("blue_light_left.png", 16, 30, 18, 18.1F),
+		new Field("some.png", 16, 30, 18, 18.1F),
+		new Field("blue_upscale.png", 16, 30, 45.3F, 45.3F)
 	)
 
 }
