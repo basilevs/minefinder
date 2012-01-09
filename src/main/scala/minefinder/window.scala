@@ -116,6 +116,7 @@ object Mouse {
 
 
 object Window {
+	private val robot = new Robot()
 	class WindowCaptureException(message:String) extends RuntimeException(message)
 	class WindowRaiseException(message:String) extends RuntimeException(message)
 	class WindowRectException(message:String) extends RuntimeException(message)
@@ -284,31 +285,11 @@ class Window(private val handle:HWND) {
 	def rectangle: Rectangle = {
 		toRectangle(getRECT)
 	}
-	def sendInputs(inputs:Iterable[INPUT]) {
-		for (input <-inputs) {
-			val arr = new Array[INPUT](1)
-			arr(0) = input
-			if (User32.SendInput(FullUser32.Convert.toDWORD(arr.size), arr, input.size).longValue != 1)
-				throw new MouseClickException()
-		}
-	}
-	private val leftFlags = Seq[DWORD](FullUser32.MOUSEEVENTF_MOVE, FullUser32.MOUSEEVENTF_LEFTDOWN, FullUser32.MOUSEEVENTF_LEFTUP)
-	private val rightFlags = Seq[DWORD](FullUser32.MOUSEEVENTF_MOVE, FullUser32.MOUSEEVENTF_RIGHTDOWN, FullUser32.MOUSEEVENTF_RIGHTUP)
-	private def createInputFabric(x:Int, y:Int) = {
-		val dim = Toolkit.getDefaultToolkit().getScreenSize();
-		val rect = getRECT
-		val X = rect.left + x
-		val Y = rect.top +y
-		if (!hasPoint(X,Y))
-			throw new MouseClickException("Can't click. Given point doesn't belong to this window.");
-		(x:DWORD) => new FullUser32.MouseInput(x, X.toDouble / dim.getWidth, Y.toDouble / dim.getHeight)
-	}
 	def lclick(x:Int, y:Int) {
 		clickInternal(x, y, InputEvent.BUTTON1_MASK)
-//		sendInputs(leftFlags.map(createInputFabric(x, y)))
 	}
 	def rclick(x:Int, y:Int) {
-		sendInputs(rightFlags.map(createInputFabric(x, y)))
+		clickInternal(x, y, InputEvent.BUTTON2_MASK)
 	}
 	def bringForeground = {
 		val f = User32.GetForegroundWindow;
@@ -322,7 +303,6 @@ class Window(private val handle:HWND) {
 		}
 	}
 	def captureImage = {
-		val robot = new Robot()
 		import Window.toRectangle
 		if (isCompletelyVisible) {
 			robot.createScreenCapture(rectangle)
