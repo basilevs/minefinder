@@ -3,8 +3,6 @@ import Recognizer._
 import java.awt.image.{BufferedImage}
 
 object Controller extends App {
-	var doWork = true
-	var windowsArePresent = false
 	val productionRecognizer = new Cascade {
 		def name = "ProductionRecognizer"
 		val user = new AskUser()
@@ -30,74 +28,76 @@ object Controller extends App {
 	}
 	println("Trained on "+SampleStorage.instance.size+" teaching samples")
 	val windows = collection.mutable.Map[Window, RecognitionState]()
-	def fieldWindowHook(window:Window) {
+	def processGameFieldWindow(window:Window) {
 		try {
 			def newState = new RecognitionState(productionRecognizer)
 			val state = windows.getOrElseUpdate(window, newState)
 			val img = window.captureImage
 			if (img == null) {
-				state.reset
+				windows.remove(window)
 				return	
 			}
-			val marks = state.recognize(img)
+			val marks = state.recognize(img) //Potentially very long process
 			if (marks == null) return
 			val grid = state.grid.grid.get
 			val f = new Field(grid.columns, marks)
 			
-			val cells = Field.getCellsWithMineFlag(f)
+			val cells = Field.getCellsWithMineFlag(f) // potentially long (not as long as recognition)
 			println("Clicking: "+ cells)
-			if (cells.size> 0 && window.isCompletelyVisible) {
+			if (cells.size> 0 && window.isCompletelyVisible && window.isForeground) {
 				val s = InputState.get
 				try {
 					window.bringForeground
+					def checkWindow {
+						if (!window.isCompletelyVisible) {
+							throw new Window.MouseClickException()
+						}
+					}
 					for (c <- cells) {
 						state.schedule(c._1.x, c._1.y)
 						val (x, y) = grid.getMiddle(c._1.x, c._1.y)
 						if (c._2) {
-							window.rclick(x, y)
+							window.rclick(x, y) // throws MouseClickException
 							Thread.sleep(10)
 						} else {
-							window.lclick(x, y)
+							window.lclick(x, y) // throws MouseClickException
 							Thread.sleep(10)
 						}
-						if (!window.isCompletelyVisible) {
-							println("Window is unaccessible after clicking "+c)
+						checkWindow
+					}
+					Thread.sleep(100)
+					checkWindow
+					productionRecognizer.save // Note, that this doesn't happen if checkWindowThrows 
+				}catch { 
+					case mc:Window.MouseClickException => {
 							val v = new FieldView(f)
 							v.visible = true
-							state.reset
-							throw new Window.MouseClickException()
-						}
 					}
 				} finally {
 					s.restore
 				}
-				if (window.isCompletelyVisible) {
-					windowsArePresent = true
-					productionRecognizer.save
-				}
 			}
 		} catch { //Exceptions are not propagated from within JNA hook
-			case mc:Window.MouseClickException => {}
 			case a:Exception => {
-				doWork = false
 				println(a)
 			}
 		}
 	}
-	def windowHook(window:Window) = {
-		if (window.text =="Minesweeper" || window.text == "Сапер") {
-			def child(w:Window) = {
-				fieldWindowHook(w)
-				false
-			}
-			window.EnumChilds(child)
+	
+	def getFirstChild(w:Window) = {
+		var rv = Option.empty[Window]
+		def childHook(c:Window) = {
+			rv = Option(c)
+			false
 		}
-		doWork
+		w.EnumChilds(childHook)
+		rv
 	}
-	while (doWork) {
-		windowsArePresent = false
-		Window.EnumWindows(windowHook)
-		if (!windowsArePresent) {
+	while (true) {
+		val mainW = Window.foregroundWindow
+		if(mainW.text =="Minesweeper" || mainW.text == "Сапер") {
+			getFirstChild(mainW).foreach(processGameFieldWindow)
+		} else {
 			Thread.sleep(1000)
 		}
 	}
