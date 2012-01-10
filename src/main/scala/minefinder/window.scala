@@ -187,6 +187,11 @@ class Window(private val handle:HWND) {
 //	FullUser32.WM_RBUTTONDOWN // Forcing class initialization
 	import Window._
 	assert(handle!=Pointer.NULL)
+	override def equals(that:Any) = that match {
+		case w:Window => w.handle == handle
+		case _ => false
+	}
+	override def hashCode = handle.hashCode
 	def createSystemRegion:Region = {
 		tryWith(new DeviceContext(handle)) { hdc =>
 			{
@@ -321,16 +326,23 @@ class Window(private val handle:HWND) {
 	def rclick(x:Int, y:Int) {
 		clickInternal(x, y, InputEvent.BUTTON3_MASK)
 	}
-	def bringForeground = {
+	def isForeground = {
 		val f = User32.GetForegroundWindow;
 		if (f == Pointer.NULL) {
-			throw new WindowRaiseException("No window can be made foreground now.")
-		} 
-		if (f != handle && root.handle != f) {
-			println("Bringing up "+ anyText)
-			User32.SetForegroundWindow(handle)
+			false
+		} else if (f != handle && root.handle != f) {
+			false
 		} else {
 			true
+		}
+		
+	}
+	def bringForeground {
+		if (!isForeground) {
+			println("Bringing up "+ anyText)
+			if (!User32.SetForegroundWindow(handle)) {
+				throw new WindowRaiseException("Can't bring window "+anyText+" foreground")
+			}
 		}
 	}
 	def captureImage = {
