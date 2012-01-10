@@ -111,22 +111,23 @@ class WindowSuite extends FunSuite {
 	}
 	test("click") {
 		val mine = Window.GetMineSweeper.get
-		val m = minefinder.Mouse.currentLocation
+		val m = minefinder.InputState.get
 		var exception = Option.empty[Exception]
 		def clickChild(w:Window) = {
 			try {
 				w.bringForeground
-				w.lclick(100, 230)
+				w.rclick(100, 100)
+				Thread.sleep(10)
 			} catch {
 				case e:Exception => exception = Option(e)
 			}
 			false
 		}
 		mine.EnumChilds(clickChild)
-//		m.restore
+		m.restore
 		exception.map(throw _)
 	}
-	test("foreground") {
+	ignore ("foreground") {
 		Window.GetMineSweeper.map(_.bringForeground)
 	}
 }

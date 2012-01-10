@@ -114,6 +114,19 @@ object Mouse {
 	}
 }
 
+class InputState(foregroundWindow:Window, mouse:Mouse.Location) {
+	def restore = {
+		foregroundWindow.bringForeground
+		mouse.restore
+	}
+}
+
+object InputState {
+	def get = {
+		new InputState(Window.foregroundWindow, Mouse.currentLocation)
+	}
+}
+
 
 object Window {
 	private val robot = new Robot()
@@ -159,6 +172,13 @@ object Window {
 	implicit def toRectangle(rect: WinDef.RECT) =  {
 		new java.awt.Rectangle(rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top)
 	}
+	def foregroundWindow = {
+		val h = User32.GetForegroundWindow;
+		if (h == null) {
+			throw new WindowRaiseException("No foreground window.")
+		}
+		new Window(h)
+	}
 }
 
 
@@ -197,6 +217,16 @@ class Window(private val handle:HWND) {
 		hasPoint(rect.right-margin, rect.bottom-margin) &&
 		hasPoint((rect.right+rect.left)/2, (rect.bottom+rect.top)/2) &&
 		hasPoint(rect.left+20, rect.bottom-20)
+	}
+	def anyText:String = {
+		var w = this
+		while (w != null) {
+			val t = w.text
+			if (t != null && t.length > 0)
+				return t
+			w = w.parent.getOrElse(null)
+		}
+		return ""
 	}
 	def text = {
 		var length = User32.GetWindowTextLength(handle)
@@ -267,14 +297,14 @@ class Window(private val handle:HWND) {
 	
 	private def clickInternal(x:Int, y:Int, flag:Int) {
 		val robot = new Robot()
-		root.rootRaised {
-			val rect = new WinDef.RECT()
-			if (!User32.GetWindowRect(handle, rect))
-				throw new WindowRectException(Window.FormatLastError)
-			robot.mouseMove(rect.left + x, rect.top+y)
-			robot.mousePress(flag);
-			robot.mouseRelease(flag);		
-		}
+		val rect = new WinDef.RECT()
+		if (!User32.GetWindowRect(handle, rect))
+			throw new WindowRectException(Window.FormatLastError)
+		if (!hasPoint(rect.left + x, rect.top+y)) 
+			throw new MouseClickException("Point doesn't belong to this window.")
+		robot.mouseMove(rect.left + x, rect.top+y)
+		robot.mousePress(flag);
+		robot.mouseRelease(flag);		
 	}
 	private def getRECT = {
 		val rect = new WinDef.RECT()
@@ -289,7 +319,7 @@ class Window(private val handle:HWND) {
 		clickInternal(x, y, InputEvent.BUTTON1_MASK)
 	}
 	def rclick(x:Int, y:Int) {
-		clickInternal(x, y, InputEvent.BUTTON2_MASK)
+		clickInternal(x, y, InputEvent.BUTTON3_MASK)
 	}
 	def bringForeground = {
 		val f = User32.GetForegroundWindow;
@@ -297,6 +327,7 @@ class Window(private val handle:HWND) {
 			throw new WindowRaiseException("No window can be made foreground now.")
 		} 
 		if (f != handle && root.handle != f) {
+			println("Bringing up "+ anyText)
 			User32.SetForegroundWindow(handle)
 		} else {
 			true

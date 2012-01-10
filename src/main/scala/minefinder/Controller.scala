@@ -14,43 +14,62 @@ object Controller extends App {
 				train(sample.mark, sample.img)
 			}
 		}
+		var needSave = false
 		SampleStorage.instance.listeners += (sample => {
 			println("Got notification "+sample.mark)
+			
 			train(sample.mark, sample.img)
 		})
+		override def save {
+			if (needSave) {
+				super.save
+				needSave = false
+			}
+		}
 		
 	}
 	println("Trained on "+SampleStorage.instance.size+" teaching samples")
+	val windows = collection.mutable.Map[Window, RecognitionState]()
 	def fieldWindowHook(window:Window) {
 		try {
+			def newState = new RecognitionState(productionRecognizer)
+			val state = windows.getOrElseUpdate(window, newState)
 			val img = window.captureImage
-			if (img == null) return
-			val grid = GridSearch.detectGrid(img)
-			val marks = 
-			for (
-				y <- 0 until grid.rows;
-				x <- 0 until grid.columns
-			) yield {
-				val cImg = grid.getCellImage(x, y, img)
-				productionRecognizer.recognize(cImg)
+			if (img == null) {
+				state.reset
+				return	
 			}
-			val f = new Field(grid.columns, marks.toSeq)
+			val marks = state.recognize(img)
+			if (marks == null) return
+			val grid = state.grid.grid.get
+			val f = new Field(grid.columns, marks)
+			
 			val cells = Field.getCellsWithMineFlag(f)
 			println("Clicking: "+ cells)
-			if (window.isCompletelyVisible) {
-				for (c <- cells) {
-					val (x, y) = grid.getMiddle(c._1.x, c._1.y)
-					if (c._2) {
-						window.rclick(x, y)
-					} else {
-						window.lclick(x, y)
+			if (cells.size> 0 && window.isCompletelyVisible) {
+				val s = InputState.get
+				try {
+					window.bringForeground
+					for (c <- cells) {
+						state.schedule(c._1.x, c._1.y)
+						val (x, y) = grid.getMiddle(c._1.x, c._1.y)
+						if (c._2) {
+							window.rclick(x, y)
+							Thread.sleep(10)
+						} else {
+							window.lclick(x, y)
+							Thread.sleep(10)
+						}
+						if (!window.isCompletelyVisible) {
+							println("Window is unaccessible after clicking "+c)
+							val v = new FieldView(f)
+							v.visible = true
+							state.reset
+							throw new Window.MouseClickException()
+						}
 					}
-					if (!window.isCompletelyVisible) {
-						println("Window is unaccessible after clicking "+c)
-						val v = new FieldView(f)
-						v.visible = true
-						throw new Window.MouseClickException()
-					}
+				} finally {
+					s.restore
 				}
 				if (window.isCompletelyVisible) {
 					windowsArePresent = true
