@@ -15,7 +15,7 @@ object Controller extends App {
 		var needSave = false
 		SampleStorage.instance.listeners += (sample => {
 			println("Got notification "+sample.mark)
-			
+			needSave = true
 			train(sample.mark, sample.img)
 		})
 		override def save {
