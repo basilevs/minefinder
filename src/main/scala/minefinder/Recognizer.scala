@@ -144,10 +144,13 @@ object Recognizer {
 	class ColorDifference(maxPixelDiff:Float, name:String = null) extends Difference(name) { 
 		val probableMatchThreshold = maxPixelDiff
 		val exactMatchThreshold = 2.F
-		def difference(img1:BufferedImage, img2:BufferedImage) = {
-			val rv = differencePerPixel(img1, img2)
-//			println("Color difference: "+rv)
-			rv
+		def difference(img1:BufferedImage, img2:BufferedImage) =  {
+			if (imageToDimension(img1) == imageToDimension(img2)) {
+				val rv = differencePerPixel(img1, img2)
+	//			println("Color difference: "+rv)
+				rv
+			} else 
+				probableMatchThreshold + 100
 		}
 		def name = "ColorDifference("+maxPixelDiff+")"
 	}
@@ -157,9 +160,13 @@ object Recognizer {
 		val probableMatchThreshold = maxPixelDiff
 		val exactMatchThreshold = 2.F
 		def difference(img1:BufferedImage, img2:BufferedImage) = {
-			val rv = grayDifferencePerPixel(img1, img2)
-//			println("Gray difference: "+rv)
-			rv
+			if (imageToDimension(img1) == imageToDimension(img2)) {
+				val rv = grayDifferencePerPixel(img1, img2)
+	//			println("Gray difference: "+rv)
+				rv
+			} else {
+				probableMatchThreshold + 100
+			} 
 		}
 	}
 	trait Cascade  extends Recognizer {
@@ -203,7 +210,7 @@ object Recognizer {
 	trait Clip extends Transforming {
 		def name = "Clip"
 		def transform(img:BufferedImage) = {
-			clip(img, min(img.getHeight, img.getWidth)/10)
+			clip(img, min(img.getHeight, img.getWidth)/9)
 		}
 	}
 	class StandardDeviation {
