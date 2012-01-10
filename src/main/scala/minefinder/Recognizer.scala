@@ -319,6 +319,7 @@ object Recognizer {
 			SampleStorage.instance.save
 		}
 		var selectedMark = Option.empty[Mark]
+		var enabled = true
 		class UserDialog extends Dialog {
 			title = "Recognize the symbol"
 			modal = true
@@ -340,18 +341,25 @@ object Recognizer {
 				contents += new Label{icon=shownIcon}
 				contents ++= Mark.all.map(markToButton)
 				contents += optionToButton("Don't know", Option.empty[Mark])
+				contents += new Button {action = new Action("Leave me alone") {
+					def apply {
+						enabled=false
+					}
+				}}
 			}
 			contents = p1
 		}
 		val dialog = new UserDialog()
 		def ask(img:BufferedImage): Option[Mark] = {
 			selectedMark = Option.empty[Mark]
-			userQuestions += 1
-			dialog.shownIcon.setImage(img)
-			dialog.p1.revalidate
-			dialog.open
-			if (!selectedMark.isEmpty)
-				SampleStorage.instance += new Sample(selectedMark.get, img) 
+			if (enabled) {
+				userQuestions += 1
+				dialog.shownIcon.setImage(img)
+				dialog.p1.revalidate
+				dialog.open
+				if (!selectedMark.isEmpty)
+					SampleStorage.instance += new Sample(selectedMark.get, img)
+			}
 			selectedMark
 		}
 	}
