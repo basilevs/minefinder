@@ -206,6 +206,7 @@ class GridSearch {
 		if (Option(nd) != dimension) {
 			grid = Option(detectGrid(img))
 		}
+		dimension = Option(nd)
 		grid.get
 	}
 }
