@@ -93,8 +93,8 @@ object Field {
 			val aDiff = numbers(0) - numbers(1) - mines(0).size + mines(1).size
 			val onlyA = closed(0) -- closed(1)
 			val onlyB = closed(1) -- closed(0)
-			if ((onlyA.size == abs(aDiff)) && (onlyA.size == onlyB.size)){
-				onlyA.map((_, aDiff>0))	
+			if ((onlyA.size == abs(aDiff)) && (onlyA.size == onlyB.size || onlyB.size == 0)){
+				onlyA.filter(_.mark == Some(Closed)).map((_, aDiff>0))
 			} else {
 				Seq()
 			}
