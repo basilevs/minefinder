@@ -6,44 +6,45 @@ class RecognitionState(recognizer:Recognizer) {
 	var field = Option.empty[Field]
 	var scheduledCells = collection.mutable.Set[(Int, Int)]()
 	var results = Array[RecognitionResult]()
+	import RecognitionState._
+	
 	def recognize(img:BufferedImage):Seq[RecognitionResult] = {
 		grid.search(img)
-		if (grid.grid.isDefined) {
+		if (isValidGridOption(grid.grid)) {
 			val gridI = grid.grid.get
 			if (gridI.columns * gridI.rows != results.size) {
-				reset
+				results = new Array[RecognitionResult](gridI.columns * gridI.rows)
+				scheduledCells.clear // forces complete refresh
 			}
-			if (results.size > 0) {
+			def refresh(x:Int, y:Int) {
+				val pos = y*gridI.columns + x
+				results(pos) = recognizer.recognize(gridI.getCellImage(x, y, img))
+			}
+			if (scheduledCells.size > 0) {
+				//Previous recognition results are still valid and we only need to process requested cells
+				for ((x,y) <- scheduledCells) {
+					refresh(x, y)
+				}
+				scheduledCells.clear
+			} else { // complete refresh
+				//If there is no cells scheduled, field might change due to user input. Therefore we should do full refresh if no better option is available. 
 				for (
 					y <- 0 until gridI.rows;
 					x <- 0 until gridI.columns
 				) {
-					val pos = y*gridI.columns + x
-					if (scheduledCells.size > 0) {
-						if (scheduledCells.contains((x, y))) {
-							results(pos) = recognizer.recognize(gridI.getCellImage(x, y, img))
-						}
-					} else {
-						results(pos) = recognizer.recognize(gridI.getCellImage(x, y, img))
-					}
+					refresh(x,y)
 				}
-				scheduledCells.clear
-				results
-			} else {
-				null
 			}
+			results
 		} else {
-			reset
-			null
+			Seq()
 		}
 	}
 	def schedule(x:Int, y:Int) {scheduledCells += ((x,y)) } 
-	def reset = {
-		if (grid.grid.isDefined) {
-			results = new Array[RecognitionResult](grid.grid.get.columns * grid.grid.get.rows)
-		} else {
-			results = Array[RecognitionResult]()
-		}
-		scheduledCells.clear
-	}
+}
+
+
+object RecognitionState {
+	def isValidGrid(g:Grid) = g.rows > 0 && g.columns > 0
+	def isValidGridOption(g:Option[Grid]) = g.map(isValidGrid).getOrElse(false)
 }
