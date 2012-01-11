@@ -7,12 +7,13 @@ object Controller extends App {
 		def name = "ProductionRecognizer"
 		val user = new AskUser()
 		val next = Seq(new AutomaticRecognizer, user)
+		var needSave = false
 		if (needTrain) {
 			for (sample <- SampleStorage.instance) {
 				train(sample.mark, sample.img)
 			}
+			needSave = true
 		}
-		var needSave = false
 		SampleStorage.instance.listeners += (sample => {
 			println("Got notification "+sample.mark)
 			needSave = true
@@ -93,6 +94,7 @@ object Controller extends App {
 		w.EnumChilds(childHook)
 		rv
 	}
+	try {
 	while (true) {
 		val mainW = Window.foregroundWindow
 		if(mainW.text =="Minesweeper" || mainW.text == "Сапер") {
@@ -102,5 +104,7 @@ object Controller extends App {
 		}
 	}
 	println("Job complete")
+	} finally {
 	System.exit(0)
+	}
 }
