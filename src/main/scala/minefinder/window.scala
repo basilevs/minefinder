@@ -348,11 +348,11 @@ class Window(private val handle:HWND) {
 	def captureImage = {
 		import Window.toRectangle
 		if (isCompletelyVisible) {
-			robot.createScreenCapture(rectangle)
+			Option(robot.createScreenCapture(rectangle))
 		} else {
 //			println("System region box:"+createSystemRegion.getBox)
 //			println("Rectangle:"+getRECT)
-			null
+			None
 		}
 	}
 }
