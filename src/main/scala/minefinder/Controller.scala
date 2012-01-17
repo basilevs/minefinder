@@ -33,19 +33,22 @@ object Controller extends App {
 		try {
 			def newState = new RecognitionState(productionRecognizer)
 			val state = windows.getOrElseUpdate(window, newState)
-			val img = window.captureImage
-			if (img == null) {
-				windows.remove(window)
-				return	
-			}
-			val marks = state.recognize(img) //Potentially very long process
-			if (marks == null) return
+			val marks = window.captureImage.map(state.recognize) //Potentially very long process
+			if (marks.isEmpty) return
 			val grid = state.grid.grid.get
-			val f = new Field(grid.columns, marks)
+			val f = new Field(grid.columns, marks.get)
 			
 			val cells = Field.getCellsWithMineFlag(f) // potentially long (not as long as recognition)
-			println("Clicking: "+ cells)
-			if (cells.size> 0 && window.isCompletelyVisible && window.isForeground) {
+			//No we quickly check if there was user changes to target cells in order not to corrupt them.
+			//This process is quick as there are relatively few cells to check
+			//Of course there might be user input while we are imitating our clicks, but we make a bet on a speed of that process instead of slowing it down with additional recognitions.
+			val recaptured = window.captureImage
+			if (recaptured.isEmpty) return
+			val toClick = cells.filter(c => {
+				state.recognize(recaptured.get, c._1.x, c._1.y).result == Option(Closed)
+			}) 
+			println("Clicking: "+ toClick)
+			if (toClick.size> 0 && window.isCompletelyVisible && window.isForeground) {
 				val s = InputState.get
 				try {
 					window.bringForeground
@@ -54,7 +57,7 @@ object Controller extends App {
 							throw new Window.MouseClickException()
 						}
 					}
-					for (c <- cells) {
+					for (c <- toClick) {
 						state.schedule(c._1.x, c._1.y)
 						val (x, y) = grid.getMiddle(c._1.x, c._1.y)
 						if (c._2) {
@@ -78,6 +81,7 @@ object Controller extends App {
 					s.restore
 				}
 			}
+			
 		} catch { //Exceptions are not propagated from within JNA hook
 			case a:Exception => {
 				println(a)

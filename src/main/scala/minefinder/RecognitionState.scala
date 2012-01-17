@@ -7,7 +7,13 @@ class RecognitionState(recognizer:Recognizer) {
 	var scheduledCells = collection.mutable.Set[(Int, Int)]()
 	var results = Array[RecognitionResult]()
 	import RecognitionState._
-	
+	def recognize(img:BufferedImage, x: Int, y:Int): RecognitionResult = {
+		assert(isValidGridOption(grid.grid))
+		val p = pos(x, y)
+		results(p) = recognizer.recognize(grid.grid.get.getCellImage(x, y, img))
+		results(p)
+	}
+	private def pos(x:Int, y:Int) = y*grid.grid.get.columns + x
 	def recognize(img:BufferedImage):Seq[RecognitionResult] = {
 		grid.search(img)
 		if (isValidGridOption(grid.grid)) {
@@ -17,8 +23,7 @@ class RecognitionState(recognizer:Recognizer) {
 				scheduledCells.clear // forces complete refresh
 			}
 			def refresh(x:Int, y:Int) {
-				val pos = y*gridI.columns + x
-				results(pos) = recognizer.recognize(gridI.getCellImage(x, y, img))
+				recognize(img, x, y)
 			}
 			if (scheduledCells.size > 0) {
 				//Previous recognition results are still valid and we only need to process requested cells
