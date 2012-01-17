@@ -57,7 +57,7 @@ class WindowSuite extends FunSuite {
 	}
 	def capture = {
 		val mine = Window.GetMineSweeper.get
-		var img:BufferedImage = null
+		var img:Option[BufferedImage] = None
 		def capture(w:Window) = {
 			img = w.captureImage
 			false
@@ -95,12 +95,12 @@ class WindowSuite extends FunSuite {
 		}}
 	}
 	test("capture") {
-		var img:BufferedImage = capture
-		assert(img != null)
+		var img:Option[BufferedImage] = capture
+		assert(img.isDefined)
 		if (true) {
 			val path  = createTempFile("mf", ".png")
 			println("Created "+path)
-			ImageIO.write(img, "PNG", path.toFile)
+			ImageIO.write(img.get, "PNG", path.toFile)
 		}
 	}
 	test("focus") {
