@@ -343,7 +343,7 @@ object Recognizer {
 				contents += optionToButton("Don't know", Option.empty[Mark])
 				contents += new Button {action = new Action("Leave me alone") {
 					def apply {
-						enabled=false
+						AskUser.this.enabled=false
 					}
 				}}
 			}
