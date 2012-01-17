@@ -1,13 +1,12 @@
 package minefinder;
 import collection.mutable.{Buffer}
-
 import collection.JavaConversions._
-
 import java.awt.image.{BufferedImage}
 import javax.imageio.ImageIO
 import java.io.{FileOutputStream, ObjectOutputStream, FileInputStream, ObjectInputStream, FileNotFoundException, EOFException, ByteArrayOutputStream, ByteArrayInputStream}
 import java.nio.file.Paths
 import OnceCloseable._
+import java.io.InputStream
 
 /* Persistent storage of samples. */
 class SampleStorage(name:String) {
@@ -21,11 +20,9 @@ class SampleStorage(name:String) {
 		}
 		oos.close()
 	}
-	def load:Iterator[Sample] with AutoCloseable = {
-		try {
-			new Iterator[Sample]() with AutoCloseable {
-				val fis = new FileInputStream(filename)
-				val ois = new ObjectInputStream(fis)
+	private def loadFromStream(s:InputStream):Iterator[Sample] with AutoCloseable = {
+			new Iterator[Sample] with AutoCloseable {
+				val ois = new ObjectInputStream(s)
 				println("Opened: "+Paths.get(filename).toAbsolutePath)
 				var count = 0
 				def getNext = {
@@ -42,15 +39,36 @@ class SampleStorage(name:String) {
 				}
 				def close {
 					ois.close
-					fis.close
+					s.close
 				}
 				override def finalize {close}
 				var _next = getNext
 				def next = {val rv = _next; _next = getNext; rv}
 				def hasNext = _next != null 
 			}
+	} 
+	private def tryOpenFile:Option[InputStream] = {
+		try {
+			Option(new FileInputStream(filename))
 		} catch {
-			case e:FileNotFoundException => new Iterator[Sample]() with AutoCloseable {def hasNext = false; def next = null; def close {}}
+			case e:FileNotFoundException => None
+		}
+	}
+	private def tryOpenResource:Option[InputStream] = {
+		try {
+			val res = classOf[Field].getResourceAsStream(filename)
+			Option(new FileInputStream(filename))
+		} catch {
+			case e:FileNotFoundException => None
+		}
+	}
+	def empty = new Iterator[Sample]() with AutoCloseable {def hasNext = false; def next = null; def close {}}
+	def load:Iterator[Sample] with AutoCloseable = {
+		try {
+			tryOpenFile.orElse(tryOpenResource).map(loadFromStream).getOrElse(empty)
+			
+		} catch {
+			case e:FileNotFoundException => empty
 		}
 	}
 }
