@@ -38,6 +38,7 @@ class Field(val columns:Int, marks:Seq[RecognitionResult]) extends Iterable[Cell
 }
 
 class FieldView(field:Field) extends Frame {
+	val defaultMargin = new Insets(1, 1, 1, 1)
 	class RecognitionButton(r:RecognitionResult) extends Button {
 		text = r.result match {
 			case Some(Number(n)) => n.toString
@@ -52,6 +53,7 @@ class FieldView(field:Field) extends Frame {
 				v.open
 			}
 		}
+		margin = defaultMargin
 	}
 	class Row(data:Seq[RecognitionResult]) extends BoxPanel(Orientation.Horizontal) {
 		contents ++= data.map(new RecognitionButton(_))
