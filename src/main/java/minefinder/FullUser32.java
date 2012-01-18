@@ -45,6 +45,7 @@ public interface FullUser32 extends com.sun.jna.platform.win32.User32 {
 	boolean IsIconic(HWND hWnd);
 	HWND GetAncestor(HWND hWnd, int gaFlags);
 	HWND WindowFromPoint(PointByValue point);
+	boolean BlockInput(boolean doBlock);
 	class MouseInput extends INPUT {
 		public MouseInput (DWORD dwFlags, double x, double y) {
 			type = new DWORD(Long.valueOf(INPUT_MOUSE));

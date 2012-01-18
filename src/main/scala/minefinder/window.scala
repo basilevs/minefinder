@@ -118,6 +118,10 @@ class InputState(foregroundWindow:Window, mouse:Mouse.Location) {
 	def restore = {
 		foregroundWindow.bringForeground
 		mouse.restore
+		FullUser32.INSTANCE.BlockInput(false)
+	}
+	def blockUserInput = {
+		FullUser32.INSTANCE.BlockInput(true)
 	}
 }
 

@@ -50,8 +50,8 @@ object Controller extends App {
 			println("Clicking: "+ toClick)
 			if (toClick.size> 0 && window.isCompletelyVisible && window.isForeground) {
 				val s = InputState.get
+				s.blockUserInput
 				try {
-					window.bringForeground
 					def checkWindow {
 						if (!window.isCompletelyVisible) {
 							throw new Window.MouseClickException()
