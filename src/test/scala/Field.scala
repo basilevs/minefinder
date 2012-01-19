@@ -14,6 +14,7 @@ class Field(val name:String, val rows:Int, val columns: Int, val xstep: Float = 
 
 object Field {
 	val all = Seq(
+		new Field("0-closed-problem.png", 16, 16, 18.1F, 18F),
 		new Field("blue_medium.png", 16, 16, 18.1F, 18F),
 		new Field("green.png", 16, 30),
 		new Field("blue_light_right.png", 16, 30),
