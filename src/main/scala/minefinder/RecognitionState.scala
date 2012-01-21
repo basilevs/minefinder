@@ -46,6 +46,7 @@ class RecognitionState(recognizer:Recognizer) {
 		}
 	}
 	def schedule(x:Int, y:Int) {scheduledCells += ((x,y)) } 
+	def reset = scheduledCells.clear
 }
 
 

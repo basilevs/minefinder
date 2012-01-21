@@ -12,7 +12,7 @@ object Controller extends App {
 			for (sample <- SampleStorage.instance) {
 				train(sample.mark, sample.img)
 			}
-			needSave = true
+			super.save
 		}
 		SampleStorage.instance.listeners += (sample => {
 			println("Got notification "+sample.mark)
@@ -34,7 +34,10 @@ object Controller extends App {
 			def newState = new RecognitionState(productionRecognizer)
 			val state = windows.getOrElseUpdate(window, newState)
 			val marks = window.captureImage.map(state.recognize) //Potentially very long process
-			if (marks.isEmpty) return
+			if (marks.isEmpty) {
+				state.reset
+				return
+			}
 			val grid = state.grid.grid.get
 			val f = new Field(grid.columns, marks.get)
 			
