@@ -7,11 +7,12 @@ import java.awt.{Toolkit, RenderingHints}
 import java.awt.geom.{Line2D}
 import java.awt.{Graphics2D}
 import java.awt.Color
+import java.awt.Dimension
 
 
 object ImageTools {
 	private val bufferedBuilder = new BufferedImageBuilder()
-	implicit def imageToDimension(img:Image) = new java.awt.Dimension(img.getWidth(null), img.getHeight(null))
+	implicit def toDimension(img:Image) = new java.awt.Dimension(img.getWidth(null), img.getHeight(null))
 	class Color(shift:Int) {
 		val mask:Int = 0xFF << shift
 		def get(rgb:Int):Int = (rgb & mask) >> shift
@@ -59,7 +60,7 @@ object ImageTools {
 	}
 	def differencePerPixelFast(img1:BufferedImage, img2:BufferedImage, diff:(Int, Int) => Float):Option[Float] = {
 		val imgs = Seq(img1, img2)
-		if (img1.getWidth != img2.getWidth || imgs.exists(!checkForRGB(_))) {
+		if (toDimension(img1) != toDimension(img2) || imgs.exists(!checkForRGB(_))) {
 			None
 		}  else {
 			val buffers = imgs.map(_.getData.getDataBuffer.asInstanceOf[DataBufferInt].getData)

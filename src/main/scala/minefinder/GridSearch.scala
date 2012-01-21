@@ -198,11 +198,11 @@ object GridSearch {
 /** Caches found grid*/
 class GridSearch {
 	import GridSearch._
-	import ImageTools.imageToDimension
+	import ImageTools.toDimension
 	var dimension = Option.empty[Dimension]
 	var grid = Option.empty[Grid]
 	def search(img:BufferedImage) = {
-		val nd = imageToDimension(img)
+		val nd = toDimension(img)
 		if (Option(nd) != dimension) {
 			grid = Option(detectGrid(img))
 		}

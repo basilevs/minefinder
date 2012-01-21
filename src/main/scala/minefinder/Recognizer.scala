@@ -38,8 +38,6 @@ class RecognitionResult(
 		def next = {
 			val rv = _next;
 			_next = rv.reason.getOrElse(null)
-			if (_next == RecognitionResult.this)
-				_next = null
 			rv
 		}
 		def hasNext = _next != null
@@ -65,27 +63,40 @@ object Recognizer {
 
 	import ImageTools._
 	import Error._
-	abstract class Difference(name:String = null)  extends Recognizer {
+	trait Difference extends Recognizer {
 		type Pair = Sample
-		private val storage = new SampleStorage(name) 
+		val fileName:String
+		def storage = new SampleStorage(fileName) 
 		val exactMatchThreshold:Float
 		val probableMatchThreshold:Float
-		val patterns = collection.mutable.Buffer[Pair]()
+		private val patterns = collection.mutable.Buffer[Pair]()
 		val list = new ListDialog()	
-		def needTrain = patterns.size == 0
+		def needTrain = !loadIfEmpty
 		def load {
-			if (name != null) {
+			if (fileName != null) {
 				patterns.clear
-				tryWith(storage.load){patterns ++= _}
+				tryWith(storage.load){ pattern => {
+					assert(pattern != null)
+					patterns ++= pattern
+					}
+				}
 			}
 		}
-		load
+		private def loadIfEmpty = {
+			if (patterns.size > 0) {
+				true
+			} else {
+				load
+				patterns.size > 0
+			}
+		}
 		def save {
-			if (name != null) {
+			if (fileName != null) {
 				storage.save(patterns.iterator)
 			}
 		}
 		def recognizeToPair(img:BufferedImage):Option[(Pair, Float)] = {
+			loadIfEmpty
 			var found = Option.empty[(Pair, Float)]
 			for ( pair <- patterns ) {
 				val mark = pair._1
@@ -110,17 +121,15 @@ object Recognizer {
 			found
 		}
 		def train(mark:Mark, img:BufferedImage) {
-			val res = recognizeToPair(img)
-			if (res.isEmpty) {
-				patterns += Sample(mark, img)
-			} else {
-				val contr = res.get._1._1 != mark
-				if (res.get._2 > exactMatchThreshold) {
-					new Sample (mark, img) +=: patterns 
-				} else if (contr) {
-					println("Contradictory training")				
-				}
-			}
+			assert(mark != null)
+			assert(img != null)
+			patterns --= patterns.filter(pair => {
+				assert(pair != null)
+				val diff = abs(difference(pair.img, img))
+				(diff < probableMatchThreshold && pair.mark != mark)
+			})
+			new Sample(mark, img) +=: patterns
+			assert(!patterns.exists(_ == null))
 		}
 		def recognize(img:BufferedImage) = {
 			if (patterns.size==0) {
@@ -131,6 +140,7 @@ object Recognizer {
 				for (p <- pair) {
 					if (p._2 < exactMatchThreshold) {
 						patterns -= p._1
+						assert(p._1 != null)
 						p._1 +=: patterns
 					}
 					
@@ -141,11 +151,11 @@ object Recognizer {
 		def difference(img1:BufferedImage, img2:BufferedImage):Float
 	}
 	
-	class ColorDifference(maxPixelDiff:Float, name:String = null) extends Difference(name) { 
+	class ColorDifference(maxPixelDiff:Float, val fileName:String = null) extends Difference { 
 		val probableMatchThreshold = maxPixelDiff
 		val exactMatchThreshold = 2.F
 		def difference(img1:BufferedImage, img2:BufferedImage) =  {
-			if (imageToDimension(img1) == imageToDimension(img2)) {
+			if (toDimension(img1) == toDimension(img2)) {
 				val rv = differencePerPixel(img1, img2)
 	//			println("Color difference: "+rv)
 				rv
@@ -155,12 +165,12 @@ object Recognizer {
 		def name = "ColorDifference("+maxPixelDiff+")"
 	}
 	
-	class GrayDifference(maxPixelDiff:Float, name:String = null) extends Difference(name) {
+	class GrayDifference(maxPixelDiff:Float, val fileName:String = null) extends Difference {
 		def name = "GrayDifference(%f)".format(maxPixelDiff)
 		val probableMatchThreshold = maxPixelDiff
 		val exactMatchThreshold = 2.F
 		def difference(img1:BufferedImage, img2:BufferedImage) = {
-			if (imageToDimension(img1) == imageToDimension(img2)) {
+			if (toDimension(img1) == toDimension(img2)) {
 				val rv = grayDifferencePerPixel(img1, img2)
 	//			println("Gray difference: "+rv)
 				rv
@@ -173,9 +183,9 @@ object Recognizer {
 		val next:Iterable[Recognizer]
 		def recognize(img:BufferedImage):RecognitionResult = {
 			for (n <- next) {
-				val rv = n.recognize(img)
-				if (rv.isDefined)
-					return rv
+				val res = n.recognize(img)
+				if (res.isDefined)
+					return new RecognitionResult(img, res.result, this, Option(res))
 			}
 			new RecognitionResult(img, None, this)
 		}
@@ -186,6 +196,18 @@ object Recognizer {
 		def save {
 			next.foreach(_.save)
 		} 
+	}
+	trait Filter extends Cascade {
+		def name = "Filter"
+		override def recognize(img:BufferedImage) = {
+			val res = super.recognize(img)
+			new RecognitionResult(img, res.result.filter(isValid), this, Option(res))
+		}
+		override def train(mark:Mark, img:BufferedImage) {
+			if (isValid(mark))
+				super.train(mark, img)
+		}
+		def isValid(mark:Mark):Boolean
 	}
 	
 	trait Transforming extends Cascade {
@@ -381,19 +403,27 @@ object Recognizer {
 			println("colors")
 			
 		}
+		def filterOutZero(target:Recognizer) = {
+			new Filter {
+				val next = Seq(target)
+				def isValid(mark:Mark) = {
+					mark != Number(0)
+				}
+			}
+		}
+		val brightnorm = new BrightnessNormalizer() {
+			val next = Seq(new ColorDifference(50, "10-scale-norm-color-50")) 
+		}
 		val downScaled = new Scaling {
 			val height = 9
 			val width = 9
-			val next = Seq(new ColorDifference(50, "09-scale-color-50"), new GrayDifference(8, "06-scale-gray-8"))
-		}
-		val brightnorm = new BrightnessNormalizer() {
-			val next = Seq(new GrayDifference(8, "10-clip-norm-gray-8")) 
+			val next = Seq(new ColorDifference(50, "09-scale-color-50"), filterOutZero(new GrayDifference(8, "06-scale-filter-gray-8")), brightnorm)
 		}
 		val clip = new Clip() {
-			val next = Seq(new ColorDifference(50, "08-clip-color-50"), new GrayDifference(8, "07-clip-gray-8"), brightnorm) 
+			val next = Seq(new ColorDifference(50, "08-clip-color-50"), filterOutZero(new GrayDifference(7, "07-clip-filter-gray-7"))) 
 		}
 		val area = new AreaSelector {
-			val next = Seq(new ColorDifference(50, "11-clip-color-50"), new GrayDifference(8, "12-clip-gray-8"))
+			val next = Seq(new ColorDifference(50, "11-clip-color-50"), filterOutZero(new GrayDifference(8, "12-clip-filter-gray-8")))
 		}
 		val next = Seq(area, clip, downScaled)
 	}
