@@ -114,9 +114,8 @@ object Mouse {
 	}
 }
 
-class InputState(foregroundWindow:Window, mouse:Mouse.Location) {
+class InputState(mouse:Mouse.Location) {
 	def restore = {
-		foregroundWindow.bringForeground
 		mouse.restore
 		FullUser32.INSTANCE.BlockInput(false)
 	}
@@ -127,7 +126,7 @@ class InputState(foregroundWindow:Window, mouse:Mouse.Location) {
 
 object InputState {
 	def get = {
-		new InputState(Window.foregroundWindow, Mouse.currentLocation)
+		new InputState(Mouse.currentLocation)
 	}
 }
 
