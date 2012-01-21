@@ -56,7 +56,7 @@ class SampleStorage(name:String) {
 	}
 	private def tryOpenResource:Option[InputStream] = {
 		try {
-			val res = classOf[Field].getResourceAsStream(filename)
+			val res = classOf[SampleStorage].getResourceAsStream(filename)
 			Option(new FileInputStream(filename))
 		} catch {
 			case e:FileNotFoundException => None
