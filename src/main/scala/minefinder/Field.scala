@@ -40,6 +40,7 @@ class Field(val columns:Int, marks:Seq[RecognitionResult]) extends Iterable[Cell
 class FieldView(field:Field) extends Frame {
 	val defaultMargin = new Insets(1, 1, 1, 1)
 	class RecognitionButton(r:RecognitionResult) extends Button {
+		maximumSize = new Dimension(20, 20)
 		text = r.result match {
 			case Some(Number(n)) => n.toString
 			case Some(Mine) => "m"
