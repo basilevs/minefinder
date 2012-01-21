@@ -5,3 +5,4 @@ testStorage.ser
 bin
 .cache
 Thumbs.db
+*.ser
