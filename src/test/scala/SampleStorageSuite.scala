@@ -1,3 +1,4 @@
+package minefinder
 import org.scalatest.FunSuite
 import java.awt.image.{BufferedImage}
 
@@ -8,9 +9,10 @@ import minefinder.{Number, UniqSampleStorage => Subject}
 import minefinder.ImageTools._
 
 
-class SampleStorageTest extends FunSuite {
+class SampleStorageSuite extends FunSuite {
 	import minefinder.Sample
-	val fields = Field.all
+	val fields = TestField.all
+	
 	test("different images are non-equal") {
 		assert(compare(fields(0).image, fields(1).image)!=0)
 	}

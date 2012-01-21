@@ -1,14 +1,14 @@
-import org.scalatest.FunSuite
+package minefinder
+import org.scalatest.{FunSuite, ParallelTestExecution}
 import minefinder._
 import java.awt.image.{BufferedImage}
 import Recognizer._
-import GridSearch._
 import java.awt.Color
 import java.awt.BasicStroke
 
 
 
-class RecognizerTest extends FunSuite {
+class RecognizerSuite extends FunSuite with ParallelTestExecution {
 	def validateRecognition(r:Recognizer, m:Mark, img:BufferedImage) {
 		r.train(m, img)
 		val result = r.recognize(img)
@@ -73,7 +73,7 @@ class RecognizerTest extends FunSuite {
 		def print = println(go)
 	}
 	test("colorDifference function") {
-		val img = Field.all(0).image
+		val img = TestField.all(0).image
 		assert(ImageTools.differencePerPixel(img, img)==0)
 		
 	}
@@ -148,6 +148,18 @@ class RecognizerTest extends FunSuite {
 		}
 		new RecognizerQuality("ClippedBrightnessNormalizer", subject).print
 	}
+	test("ScaledBrightnessNormalizer") {
+		val subject = new Scaling() {
+			val height = 9
+			val width = 9
+			val next = Seq(
+				new BrightnessNormalizer() {
+					val next= Seq(new GrayDifference(8))
+				}
+			)
+		}
+		new RecognizerQuality("ScaledBrightnessNormalizer", subject).print
+	}
 	test ("Automatic Recognizer", Active) {
 		val subject = new AutomaticRecognizer() 
 		try {
@@ -160,7 +172,7 @@ class RecognizerTest extends FunSuite {
 		}
 	}
 	def imageToCells(img:BufferedImage):Iterable[BufferedImage] = {
-		val grid  = detectGrid(img)
+		val grid  = GridSearch.detectGrid(img)
 		(
 			for (
 				y <- 0 until grid.rows;
@@ -171,7 +183,7 @@ class RecognizerTest extends FunSuite {
 	test("ask user about a few samples") {
 		val t = new Training()
 		println("Loaded "+ SampleStorage.instance.size+" teaching samples")
-		val cells = Field.all.flatMap(f => imageToCells(f.image))
+		val cells = TestField.all.flatMap(f => imageToCells(f.image))
 		val iter = cells.iterator
 		var count = 0
 		while (t.user.userQuestions < 15 && iter.hasNext) {

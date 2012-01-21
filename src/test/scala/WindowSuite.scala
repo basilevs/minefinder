@@ -1,3 +1,4 @@
+package minefinder
 import java.nio.file.Files.createTempFile
 import javax.imageio.ImageIO
 import org.scalatest.FunSuite
@@ -20,7 +21,7 @@ class WindowSuite extends FunSuite {
 				val title = x.text
 				if (title.length > 5) {
 					works = true
-//					println(title)
+					println(title)
 					true
 				} else {
 					true

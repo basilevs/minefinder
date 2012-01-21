@@ -1,3 +1,4 @@
+package minefinder
 import org.scalatest.FunSuite
 import java.awt.image.{BufferedImage}
 import java.awt.geom.{Line2D}
@@ -10,9 +11,9 @@ import java.awt.Graphics
 import minefinder.AxisGuess
 import math.max
 
-class GridSearch extends FunSuite {
+class GridSearchSuite extends FunSuite {
 	import minefinder.GridSearch._
-	val fields = Field.all
+	val fields = TestField.all
 	def show (imageTitle:String, img: Image) {
 		val frame = new Frame() {
 			this.title = imageTitle
@@ -121,7 +122,7 @@ class GridSearch extends FunSuite {
 				}}
 			}
 			gc.dispose()
-			show("Intensity "+name, img)		
+//			show("Intensity "+name, img)		
 		}
 	}
 	test("detect period") {
@@ -158,7 +159,7 @@ class GridSearch extends FunSuite {
 			g2d.setStroke(new BasicStroke(2))
 			grid.draw(g2d)
 			g2d.dispose()
-			show("Grid "+name, img)
+//			show("Grid "+name, img)
 			assert(grid.rows == field.rows)
 			assert(grid.columns == field.columns)
 		}
