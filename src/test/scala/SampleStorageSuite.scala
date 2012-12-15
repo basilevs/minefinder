@@ -5,7 +5,7 @@ import java.awt.image.{BufferedImage}
 import java.nio.file.Files.deleteIfExists
 import java.nio.file.Paths
 
-import minefinder.{Number, UniqSampleStorage => Subject}
+import minefinder.{UniqSampleStorage => Subject}
 import minefinder.ImageTools._
 
 

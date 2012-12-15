@@ -8,7 +8,6 @@ import javax.swing.ImageIcon
 import minefinder.ImageTools._
 import minefinder.AxisGuess._
 import java.awt.Graphics
-import minefinder.AxisGuess
 import math.max
 
 class GridSearchSuite extends FunSuite {

@@ -7,10 +7,6 @@ import java.awt.Image
 import scala.swing._
 import javax.swing.ImageIcon
 import java.awt.Toolkit
-import minefinder.Window
-import minefinder.FullUser32
-import minefinder.OnceCloseable
-import minefinder.Region
 
 
 class WindowSuite extends FunSuite {

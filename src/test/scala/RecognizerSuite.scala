@@ -51,6 +51,7 @@ class RecognizerSuite extends FunSuite with ParallelTestExecution {
 					wrong += 1
 					assert(wrong>0)
 					println(prefix+": recognized: "+rv.result.get+", truth: "+ mark)
+					rv.getView.open
 				}
 			}
 		}
@@ -88,6 +89,7 @@ class RecognizerSuite extends FunSuite with ParallelTestExecution {
 			val next = Seq(new ColorDifference(50))
 		}
 		new RecognizerQuality("ClippedColor", subject).print
+		if (false) {
 		val img = new BufferedImage(20, 20, BufferedImage.TYPE_INT_RGB)
 		val g = img.createGraphics
 		g.setColor(Color.green)
@@ -97,12 +99,14 @@ class RecognizerSuite extends FunSuite with ParallelTestExecution {
 		g.drawRect(5,5,14, 14)
 		g.dispose
 		subject.recognize(img).getView.open
+		}
 	}
 	test("AreaSelectorColor") {
 		val subject = new AreaSelector {
 			val next = Seq(new ColorDifference(50))
 		}
 		new RecognizerQuality("AreaSelectorColor", subject).print
+		if (false)
 		for (sample <- SampleStorage.instance.filter(_.mark == Number(1)).toSeq.splitAt(10)._1) {
 			subject.recognize(sample.img).getView.open
 		}
@@ -142,7 +146,7 @@ class RecognizerSuite extends FunSuite with ParallelTestExecution {
 		val subject = new Clip() {
 			val next = Seq(
 				new BrightnessNormalizer() {
-					val next= Seq(new GrayDifference(8))
+					val next= Seq(new GrayDifference(7))
 				}
 			)
 		}
@@ -154,7 +158,7 @@ class RecognizerSuite extends FunSuite with ParallelTestExecution {
 			val width = 9
 			val next = Seq(
 				new BrightnessNormalizer() {
-					val next= Seq(new GrayDifference(8))
+					val next= Seq(new GrayDifference(7))
 				}
 			)
 		}
