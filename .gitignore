@@ -1,0 +1,8 @@
+*.class
+build/fake/defender/*.properties
+target
+testStorage.ser
+bin
+.cache
+Thumbs.db
+*.ser
