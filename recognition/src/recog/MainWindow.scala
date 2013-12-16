@@ -127,12 +127,12 @@ class MainWindow extends MainFrame {
     var mat: Mat = new Mat(orig, Range.all())
     var image: Mat = if (drawOriginalCheck.selected) { orig.clone() } else Mat.zeros(orig.size(), CvType.CV_8UC3)
     try {
-	    composed.applyWithHook(mat) { (a: ImageProcessor[_, _], b: Any) =>
+	    composed(mat, (a: ImageProcessor[_, _], b: Any) =>
 	      {
 	        if (resultsToDraw contains a)
-	          a.draw(image, b.asInstanceOf[a.Result])
+	          a.draw(image, b)
 	      }
-	    }
+	    )
     } finally {
 	    imageIcon.setImage(image)
 	    imageLabel.repaint()

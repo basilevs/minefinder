@@ -14,14 +14,14 @@ class CellProcessor[T, R](
 
   def parameters(): Seq[DoubleParameter] = { null }
 
-  override def apply(input: Mat) = {
-    val grid = gridProcessor(input)
+  override def apply(input: Mat, hook:Hook):Result = {
+    val grid = gridProcessor(input, hook)
     val seqOption = grid.map {
       case grid => {
         grid.forEachCell {
           case (x, y, left, top, right, bottom) => {
             val rect = new Rect(left, top, right - left, bottom - top)
-            subProcessor(new Mat(input, rect))
+            subProcessor(new Mat(input, rect), hook)
           }
         }
       }

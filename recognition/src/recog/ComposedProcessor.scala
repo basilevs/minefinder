@@ -37,14 +37,6 @@ object ComposedProcessor {
     else
       None
   }
-  def universalApply[T, R](processor: ImageProcessor[T, R], input:T, hook: (ImageProcessor[_, _], Any) => Unit): R = {
-    val composed = safeCast(classOf[ComposedProcessor[T, _, R]], processor)
-    if (composed.isDefined) {
-      composed.get.applyWithHook(input)(hook)
-    } else {
-      processor.apply(input)
-    }
-  }
 
 }
 
@@ -55,20 +47,12 @@ extends ImageProcessor[T, R] {
 
   def parameters = second.parameters ++ first.parameters
   
-  def apply(input:T): R = {
-    second.apply(first.apply(input))
-  }
-  
   def draw(target: Mat, result: Any) {
 	  second.draw(target, result.asInstanceOf[R])
   }
   
-  def applyWithHook[X](input:T)(hook: (ImageProcessor[_, _], Any) => Unit):R = {
-    val intermediateResult = universalApply(first, input, hook)
-    hook(first, intermediateResult)
-    val rv = universalApply(second, intermediateResult, hook)
-    hook(second, rv)
-    rv
+  override def apply(input:T, hook:Hook):R = {
+    second.apply(first.apply(input, hook), hook)
   }
   
   def +[X](next:ImageProcessor[R, X]): ComposedProcessor[T, R, X] = {

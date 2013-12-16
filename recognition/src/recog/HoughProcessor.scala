@@ -28,13 +28,14 @@ class HoughProcessor extends ImageProcessor[Mat, Seq[Array[Double]]] {
   maxGap.value = 0.2
 
   def parameters(): Seq[DoubleParameter] = Seq(rho, theta, threshold, minLength, maxGap)
-  def apply(mat: Mat): Seq[Array[Double]] = {
+  def apply(mat: Mat, hook:Hook): Seq[Array[Double]] = {
     val lines = new Mat
     assert(lines.`type`() == CvType.CV_8U)
     Imgproc.HoughLinesP(mat, lines, rho.value, theta.value, threshold.value.toInt, minLength.value * min(mat.width, mat.height), maxGap.value * mat.width)
 
     val linesAsArrays = for (i <- 0 until lines.cols())
       yield lines.get(0, i)
+    hook(this, linesAsArrays)
     linesAsArrays
   }
   def draw(target: Mat, result: Any) {
