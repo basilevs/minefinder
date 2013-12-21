@@ -1,0 +1,5 @@
+Allow easy access to the whole recognized field for heuristics
+  Design interfaces
+  Result storage
+  Result to recognition binding
+  
