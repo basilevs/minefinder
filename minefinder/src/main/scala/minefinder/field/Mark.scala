@@ -2,6 +2,7 @@ package minefinder.field;
 
 trait Mark {
 	def clickAllowed: Boolean
+	def known: Boolean 
 }
 
 case class Number(n:Int) extends Mark {
@@ -9,21 +10,25 @@ case class Number(n:Int) extends Mark {
 	assert(n >= 0)
 	assert(n <= 8)
 	override def toString = n.toString
+	override def known = true
 }
 
 case object Closed extends Mark {
 	def clickAllowed = true
 	override def toString = "Closed"
+	override def known = false
 }
 
 case object Question extends Mark {
 	def clickAllowed = true
 	override def toString = "Question"
+   	override def known = false
 }
 
 case object Mine extends Mark {
 	def clickAllowed = false
 	override def toString = "Mine"
+   	override def known = true
 }
 
 object Mark {

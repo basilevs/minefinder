@@ -21,12 +21,12 @@ class GridProcessor extends ImageProcessor[Seq[Array[Double]], Option[Grid]] {
 
   def draw(target: Mat, result: Any) {
     result.asInstanceOf[Option[Grid]].map(grid => {
-      for (tick <- grid.x.ticks) {
-        Core.line(target, new Point(tick, grid.y.start), new Point(tick, grid.y.stop), new Scalar(0, 0, 255), 1)
+      for (tick <- grid.xAxis.ticks) {
+        Core.line(target, new Point(tick, grid.yAxis.start), new Point(tick, grid.yAxis.stop), new Scalar(0, 0, 255), 1)
       }
 
-      for (tick <- grid.y.ticks) {
-        Core.line(target, new Point(grid.x.start, tick), new Point(grid.x.stop, tick), new Scalar(0, 0, 255), 1)
+      for (tick <- grid.yAxis.ticks) {
+        Core.line(target, new Point(grid.xAxis.start, tick), new Point(grid.xAxis.stop, tick), new Scalar(0, 0, 255), 1)
       }
     })
     

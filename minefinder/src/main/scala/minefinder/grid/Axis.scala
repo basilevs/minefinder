@@ -16,4 +16,9 @@ case class Axis(val start:Int, val step:Int, val count:Int) {
       f(index, start, stop)
     }
   }
+  
+  /** Returns the begin and the end of the step with a given index */
+  def getStep(index:Int): (Int, Int) = {
+      (start + step*index, start + step*(index+1))
+  } 
 }
