@@ -14,10 +14,9 @@ class CannyProcessor extends ImageProcessor[Mat, Mat] {
   def name = "Canny" 
   def parameters: Seq[DoubleParameter] = Seq(threshold1, threshold2)
   
-  def apply(mat: Mat, hook:Hook): Mat = { 
+  def apply(mat: Mat): Mat = { 
     val rv = new Mat()
     Imgproc.Canny(mat, rv, threshold1.value, threshold2.value)
-    hook(this, rv)
     rv
   }
   def draw(target: Mat, result: Any) {

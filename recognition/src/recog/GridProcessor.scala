@@ -32,10 +32,9 @@ class GridProcessor extends ImageProcessor[Seq[Array[Double]], Option[Grid]] {
     
   }
   
-  def apply(input:Seq[Array[Double]], hook:Hook) : Option[Grid] = {
+  def apply(input:Seq[Array[Double]]) : Option[Grid] = {
     val gd = new GridDetector(falsePositive.value, falseNegative.value, rejectThreshold.value)
     val rv = gd(input)
-    hook(this, rv)
     rv
   }
   

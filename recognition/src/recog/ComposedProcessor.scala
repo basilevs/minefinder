@@ -51,8 +51,8 @@ extends ImageProcessor[T, R] {
 	  second.draw(target, result.asInstanceOf[R])
   }
   
-  override def apply(input:T, hook:Hook):R = {
-    second.apply(first.apply(input, hook), hook)
+  override def apply(input:T):R = {
+    second.apply(first.apply(input))
   }
   
   def +[X](next:ImageProcessor[R, X]): ComposedProcessor[T, R, X] = {

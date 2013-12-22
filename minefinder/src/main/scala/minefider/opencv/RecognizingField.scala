@@ -17,12 +17,17 @@ class RecognizingField(val grid:Grid, val image:(Int, Int, Int, Int)=>Option[Mar
     private val field = new StatefulField(grid.xAxis.count, grid.yAxis.count)
     private val eventBus = new EventBus[Cell]()
 
-    override def cells = field.cells    
+    override def cells:Set[Cell] = field.cells    
     def reactions:EventSource[Cell] = eventBus
-    def update(cell:Cell) {
+    
+    def getRect(cell:Cell) = {
         assert(field.cells contains cell)
         val coords = field.unpack(cell)
-        val cellRect = (grid.getCell _).tupled(coords)
+        (grid.getCell _).tupled(coords)
+    }
+    
+    def update(cell:Cell) {
+        val cellRect = getRect(cell) 
         val mark = image.tupled(cellRect)
         for (m <- mark) {
             if (field.update(cell, m))
