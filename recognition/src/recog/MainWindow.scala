@@ -135,10 +135,16 @@ class MainWindow extends MainFrame {
 
 
     def hook[T, R](processor: ImageProcessor[T, R]) = {
-	    def processResult(processor: ImageProcessor[_, _], result: Any) {
-	        mutableHook.foreach(_(processor, result))
-	    }
-        new HookedProcessor(processor, processResult)
+        new ForwardingProcessor(processor) {
+            override def apply(input: T): R = {
+            	val rv = super.apply(input)
+            	mutableHook.foreach(_(processor, rv))
+            	rv
+            }
+            override def draw(target: Mat, result: Any) {
+                drawResult(processor, result, target)
+            }
+        }
     }
 
     def drawResult(processor: ImageProcessor[_, _], result: Any, image: Mat) {
