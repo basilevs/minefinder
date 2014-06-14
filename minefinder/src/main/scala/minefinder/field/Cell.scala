@@ -1,6 +1,6 @@
 package minefinder.field
 
-trait Cell {
-    def mark: Option[Mark]
-    def neighboors: Set[Cell]
+trait Cell[+T] {
+    def mark: T
+    def neighboors: Set[_ <: Cell[T]]
 }

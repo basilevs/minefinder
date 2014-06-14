@@ -41,21 +41,30 @@ object ComposedProcessor {
 }
 
 class ComposedProcessor[-T, M, R] (val second:ImageProcessor[M, R], val first:ImageProcessor[T, M])
-extends ImageProcessor[T, R] {
+extends ImageProcessor[T, (M,R)] {
 	import ComposedProcessor._
   def name(): String = second.name + " o " + first.name
 
-  def parameters = second.parameters ++ first.parameters
+  override def parameters = Seq() 
   
-  def draw(target: Mat, result: Any) {
-	  second.draw(target, result.asInstanceOf[R])
+  override def draw(target: Mat, result: (M,R)) {
+	  first.draw(target, result._1)
+	  second.draw(target, result._2)
   }
   
-  override def apply(input:T):R = {
-    second.apply(first.apply(input))
+  override def apply(input:T): (M, R) = {
+    val f = first.apply(input)
+    val s = second.apply(f)
+    (f, s)
   }
   
-  def +[X](next:ImageProcessor[R, X]): ComposedProcessor[T, R, X] = {
-    new ComposedProcessor(next, this)
+  def +[X](next:ImageProcessor[R, X]): ComposedProcessor[T, (M,R), X] = {
+    val wrapper = new ImageProcessor[(M,R), X] {
+      override def name = "Wrapper("+next.name+")"
+      override def parameters = Seq()
+      override def draw(target: Mat, result: X) = next.draw(target, result)
+      override def apply(input:(M,R)): X = next(input._2)
+    }  
+    new ComposedProcessor[T, (M,R), X](wrapper, this)
   }
 }

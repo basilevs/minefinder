@@ -20,5 +20,10 @@ case class Axis(val start:Int, val step:Int, val count:Int) {
   /** Returns the begin and the end of the step with a given index */
   def getStep(index:Int): (Int, Int) = {
       (start + step*index, start + step*(index+1))
+  }
+  
+  
+  override def toString = {
+    "Axis(%d, %d, %d, %d)".format(start, step, count, stop)
   } 
 }

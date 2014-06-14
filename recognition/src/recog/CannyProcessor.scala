@@ -19,8 +19,8 @@ class CannyProcessor extends ImageProcessor[Mat, Mat] {
     Imgproc.Canny(mat, rv, threshold1.value, threshold2.value)
     rv
   }
-  def draw(target: Mat, result: Any) {
-    Core.subtract(target, target, target, result.asInstanceOf[Mat])
-    Core.add(target, new Scalar(255, 0, 0), target, result.asInstanceOf[Mat])
+  def draw(target: Mat, result: Mat) {
+    Core.subtract(target, target, target, result)
+    Core.add(target, new Scalar(255, 0, 0), target, result)
   }
 }
