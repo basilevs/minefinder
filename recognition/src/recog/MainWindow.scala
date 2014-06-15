@@ -1,6 +1,7 @@
 package recog
 import scala.swing.MainFrame
 import scala.swing.Label
+import scala.swing.Dimension
 import scala.swing.SimpleSwingApplication
 import java.awt.Image
 import javax.imageio.ImageIO
@@ -106,6 +107,7 @@ class MainWindow extends MainFrame {
   title = "Comparator"
   val imageIcon = new javax.swing.ImageIcon()
   val imageLabel = new Label() { icon = imageIcon }
+  imageLabel.preferredSize=new Dimension(600, 300)
   val drawOriginalCheck = new CheckBox
   val sourceCombo = new ComboBox(Seq("Example.png", "ExampleGreen.png", "ExampleSmall.png"))
   sourceCombo.selection.reactions += updateReaction
@@ -121,7 +123,9 @@ class MainWindow extends MainFrame {
   
   val composedGrid = new ComposedProcessor(hook(hough), hook(cannyGrid)) + hook(grid)
   val digitCanny = new CannyProcessor
-  val cell = new CellProcessor[Mat, composedGrid.Result](hook(digitCanny), composedGrid) {
+  val backgroundProcessor = new BackgroundProcessor
+  val singleCellProcessor = new ComposedProcessor(hook(digitCanny), hook(backgroundProcessor))
+  val cell = new CellProcessor[singleCellProcessor.Result, composedGrid.Result](singleCellProcessor, composedGrid) {
     override def getGrid(gridData: composedGrid.Result) = {
       gridData._2
     }
@@ -177,21 +181,23 @@ class MainWindow extends MainFrame {
   }
 
   def schedule {
+    val image = loadExample(sourceCombo.selection.item)
+    lastResults = null
+    orig = image
+    updateImage(image, null)
     Future(process)
   }
 
   def process {
     try {
-      val image: Mat = loadExample(sourceCombo.selection.item)
-      lastResults = null
-      orig = image
-      updateImage(image, null)
+      val image: Mat = orig
       val result = process(image)
       lastResults = result 
       updateImage(image, result)
     } catch {
       case e:Throwable => {
         e.printStackTrace()
+        System.exit(100)
       }
     }
   }
