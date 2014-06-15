@@ -41,7 +41,7 @@ abstract class CellProcessor[CellResult, GridData](
         val rect: Rect = getRect(x0, y0)
         val region = new Mat(image, rect)
         new RectangularCell[CellResult] {
-         override lazy val mark = subProcessor(region)
+         override val mark = try {subProcessor(region)} catch { case e:Throwable => throw new RuntimeException("Failed to process cell %d, %d, %s".format(x, y, rect.toString), e)}
          override val x = x0
          override val y = y0
          override lazy val neighboors:Set[RectangularCell[CellResult]] = neighWrap(x, y)
@@ -78,7 +78,7 @@ abstract class CellProcessor[CellResult, GridData](
           val region = new Mat(target, rect)
           subProcessor.draw(region, cell.mark)
         } catch {
-          case e:Throwable => throw new IllegalArgumentException("Can get region " + rect + " in image of size " + target.size, e); 
+          case e:Throwable => throw new IllegalArgumentException("Can draw region " + rect + " in image of size " + target.size, e); 
         }
       }
     }
