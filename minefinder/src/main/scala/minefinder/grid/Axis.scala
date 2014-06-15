@@ -5,7 +5,7 @@ case class Axis(val start:Int, val step:Int, val count:Int) {
   assert(count > 0)
   val stop = start + step*count
   
-  def ticks: Seq[Int] = start.until(stop+1, step)
+  def ticks: Seq[Int] = start.to(stop, step)
   /** 
    *  Iterates over all cells providing index, start, end.
    */
